@@ -1,0 +1,99 @@
+name: Publish Docker Image
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - '*'
+
+env:
+  IMAGE_NAME: ghcr.io/budgetbuddyde/backend
+  IMAGE_TAG: ${{ github.ref_name }}
+  DOCKER_USER: ${{ secrets.DOCKER_USER }}
+  PAT: ${{ secrets.NPM_TOKEN }}
+
+jobs:
+  test:
+    name: Test Backend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up JDK 17.0
+        uses: actions/setup-java@v2
+        with:
+          java-version: '17.0'
+          distribution: 'adopt'
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+      - name: Cache Gradle packages
+        uses: actions/cache@v2
+        with:
+          path: ~/.gradle/caches
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+      - name: Run tests
+        run: ./gradlew test
+      - name: Upload report
+        uses: actions/upload-artifact@v2
+        with:
+          name: Test Report
+          path: ./build/reports/tests/test/
+          retention-days: 30
+
+  build_image:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Build Docker Image
+        run: |
+          docker build . -t ${{ env.IMAGE_NAME }}:${{ github.ref_name }}
+          mkdir -p artifacts
+          docker save ${{ env.IMAGE_NAME }}:${{ github.ref_name }} > artifacts/docker-image.tar
+        env:
+          DOCKER_BUILDKIT: 1
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Save Docker Image
+        uses: actions/upload-artifact@v2
+        with:
+          name: docker-artifact
+          path: artifacts
+          retention-days: 1
+
+  push_image:
+    needs: build_image
+    name: Push Docker image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Retrieve saved Docker Image
+        uses: actions/download-artifact@v2
+        with:
+          name: docker-artifact
+          path: artifacts
+
+      - name: Load Docker Image
+        run: |
+          cd artifacts
+          docker load < docker-image.tar
+
+      - name: Login
+        run: |
+          echo ${{ env.PAT }} | docker login ghcr.io -u ${{ env.DOCKER_USER }} --password-stdin
+
+      - name: Push Docker Image
+        run: |
+          docker push ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          docker tag ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }} ${{ env.IMAGE_NAME }}:latest
+          docker push ${{ env.IMAGE_NAME }}:latest
+
+  cleanup:
+    needs: push_image
+    name: Cleanup
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete artifact
+        uses: geekyeggo/delete-artifact@v1
+        with:
+          name: docker-artifact

@@ -7,17 +7,18 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
-    private final AuthorizationInterceptor authorizationInterceptor;
-
-    public WebConfig() {
-        this.authorizationInterceptor = new AuthorizationInterceptor();
-    }
+    private final AuthorizationInterceptor authorizationInterceptor = new AuthorizationInterceptor();
+    private final RequestLoggingInterceptor requestLoggingInterceptor = new RequestLoggingInterceptor();
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         // Enable auth via session for endpoints
         registry
-                .addInterceptor(this.authorizationInterceptor)
+                .addInterceptor(authorizationInterceptor)
                 .order(1);
+
+        registry
+                .addInterceptor(requestLoggingInterceptor)
+                .order(2);
     }
 }

@@ -10,6 +10,8 @@ import de.budgetbuddy.backend.paymentMethod.PaymentMethodRepository;
 import de.budgetbuddy.backend.user.User;
 import de.budgetbuddy.backend.user.UserRepository;
 import jakarta.servlet.http.HttpSession;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;

@@ -12,7 +12,7 @@ public class CorsConfig implements WebMvcConfigurer {
     public void addCorsMappings(CorsRegistry registry) {
         registry
                 .addMapping("/**")
-                .allowedOriginPatterns("http://*localhost*", "https://budget-buddy.de", "https://*budget-buddy.de*")
+                .allowedOriginPatterns("http://127.0.0.1*", "http://*localhost*", "https://budget-buddy.de", "https://*budget-buddy.de*")
                 .allowedMethods("*")
                 .allowedHeaders("*")
                 .allowCredentials(true);

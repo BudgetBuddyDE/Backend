@@ -10,8 +10,6 @@ import de.budgetbuddy.backend.paymentMethod.PaymentMethodRepository;
 import de.budgetbuddy.backend.user.User;
 import de.budgetbuddy.backend.user.UserRepository;
 import jakarta.servlet.http.HttpSession;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -100,7 +98,7 @@ public class TransactionController {
                     .body(new ApiResponse<>(HttpStatus.CONFLICT.value(), "You can't retrieve transactions of different users", new ArrayList<>()));
         }
 
-        List<Transaction> transactions = transactionRepository.findAllByOwner(user.get());
+        List<Transaction> transactions = transactionRepository.findAllByOwnerOrderByProcessedAtDesc(user.get());
         return ResponseEntity
                 .status(HttpStatus.OK)
                 .body(new ApiResponse<>(transactions));

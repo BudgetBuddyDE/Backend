@@ -37,6 +37,7 @@ public class BudgetControllerTests {
     private final UserRepository userRepository;
     private final CategoryRepository categoryRepository;
     private final BudgetRepository budgetRepository;
+    private final BudgetProgressViewRepository budgetProgressViewRepository;
     private final BudgetController budgetController;
     private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
     private MockHttpSession session;
@@ -45,10 +46,12 @@ public class BudgetControllerTests {
         UserRepository userRepository = Mockito.mock(UserRepository.class);
         CategoryRepository categoryRepository = Mockito.mock(CategoryRepository.class);
         BudgetRepository budgetRepository = Mockito.mock(BudgetRepository.class);
+        BudgetProgressViewRepository budgetProgressViewRepository = Mockito.mock(BudgetProgressViewRepository.class);
         this.userRepository = userRepository;
         this.categoryRepository = categoryRepository;
         this.budgetRepository = budgetRepository;
-        this.budgetController = new BudgetController(budgetRepository, userRepository, categoryRepository);
+        this.budgetProgressViewRepository = budgetProgressViewRepository;
+        this.budgetController = new BudgetController(budgetRepository, budgetProgressViewRepository, userRepository, categoryRepository);
     }
 
     @BeforeEach

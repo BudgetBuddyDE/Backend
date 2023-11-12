@@ -22,12 +22,14 @@ import java.util.UUID;
 @RequestMapping("/v1/budget")
 public class BudgetController {
     private final BudgetRepository budgetRepository;
+    private final BudgetProgressViewRepository budgetProgressViewRepository;
     private final UserRepository userRepository;
     private final CategoryRepository categoryRepository;
 
     @Autowired
-    public BudgetController(BudgetRepository budgetRepository, UserRepository userRepository, CategoryRepository categoryRepository) {
+    public BudgetController(BudgetRepository budgetRepository, BudgetProgressViewRepository budgetProgressViewRepository, UserRepository userRepository, CategoryRepository categoryRepository) {
         this.budgetRepository = budgetRepository;
+        this.budgetProgressViewRepository = budgetProgressViewRepository;
         this.userRepository = userRepository;
         this.categoryRepository = categoryRepository;
     }
@@ -89,6 +91,30 @@ public class BudgetController {
         }
 
         List<Budget> budgets = budgetRepository.findAllByOwner(user.get());
+        return ResponseEntity
+                .status(HttpStatus.OK)
+                .body(new ApiResponse<>(budgets));
+    }
+
+    @GetMapping("/progress")
+    public ResponseEntity<ApiResponse<List<BudgetProgressView>>> getBudgetProgressByUuid(@RequestParam UUID uuid, HttpSession session) throws JsonProcessingException {
+        Optional<User> user = userRepository.findById(uuid);
+        if (user.isEmpty()) {
+            return ResponseEntity
+                    .status(HttpStatus.NOT_FOUND)
+                    .body(new ApiResponse<>(404, "Provided user doesn't exist", new ArrayList<>()));
+        }
+
+        Optional<User> sessionUser = AuthorizationInterceptor.getSessionUser(session);
+        if (sessionUser.isEmpty()) {
+            return AuthorizationInterceptor.noValidSessionResponse();
+        } else if (!sessionUser.get().getUuid().equals(uuid)) {
+            return ResponseEntity
+                    .status(HttpStatus.CONFLICT)
+                    .body(new ApiResponse<>(HttpStatus.CONFLICT.value(), "You can't retrieve budgets for different users", new ArrayList<>()));
+        }
+
+        List<BudgetProgressView> budgets = budgetProgressViewRepository.findAllByOwner(user.get());
         return ResponseEntity
                 .status(HttpStatus.OK)
                 .body(new ApiResponse<>(budgets));

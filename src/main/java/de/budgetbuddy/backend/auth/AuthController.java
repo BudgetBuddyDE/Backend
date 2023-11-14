@@ -78,16 +78,24 @@ public class AuthController {
         Object userObj = session.getAttribute("user");
         if (userObj == null) {
             return ResponseEntity
-                    .status(HttpStatus.NOT_FOUND)
-                    .body(new ApiResponse<>(HttpStatus.NOT_FOUND.value(),  "Couldn't find a active session"));
+                    .status(HttpStatus.UNAUTHORIZED)
+                    .body(new ApiResponse<>(HttpStatus.UNAUTHORIZED.value(),  "Couldn't find a active session"));
         }
 
         try {
-            String userString = session.getAttribute("user").toString();
-            User user = objMapper.readValue(userString, User.class);
+            User sessionUser = objMapper.readValue(session.getAttribute("user").toString(), User.class);
+            // In order to always return the most updated version, we're gonna select the user again instead of relying on the session-user
+            Optional<User> user = userRepository.findById(sessionUser.getUuid());
+            if (user.isEmpty()) {
+                session.invalidate();
+                return ResponseEntity
+                        .status(HttpStatus.UNAUTHORIZED)
+                        .body(new ApiResponse<>(HttpStatus.UNAUTHORIZED.value(), "Your user has been deleted"));
+            }
+
             return ResponseEntity
                     .status(HttpStatus.OK)
-                    .body(new ApiResponse<>("Found a valid session", user));
+                    .body(new ApiResponse<>("Found a valid session", user.get()));
         } catch (JsonProcessingException e) {
             return ResponseEntity
                     .status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -101,6 +109,6 @@ public class AuthController {
         session.invalidate();
         return ResponseEntity
                 .status(HttpStatus.OK)
-                .body(new ApiResponse<>("Your session has been destroyed"));
+                .body(new ApiResponse<>(HttpStatus.OK.value(), "Your session has been destroyed"));
     }
 }

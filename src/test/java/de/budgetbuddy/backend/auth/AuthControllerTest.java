@@ -17,8 +17,9 @@ import org.springframework.mock.web.MockHttpSession;
 
 import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class AuthControllerTest {
@@ -112,5 +113,40 @@ class AuthControllerTest {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals("You're logged in", Objects.requireNonNull(response.getBody()).getMessage());
         assertEquals(objMapper.readValue(session.getAttribute("user").toString(), User.class), user);
+    }
+
+    @Test
+    void testValidateSession_NoValidSession() {
+        ResponseEntity<ApiResponse<User>> response = authController.validateSession(session);
+
+        assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
+        assertEquals("Couldn't find a active session", Objects.requireNonNull(response.getBody()).getMessage());
+        assertNull(Objects.requireNonNull(response.getBody()).getData());
+    }
+
+    @Test
+    void testValidateSession_ValidSessionFound() throws JsonProcessingException {
+        User sessionUser = new User(UUID.randomUUID());
+        session.setAttribute("user", objMapper.writeValueAsString(sessionUser));
+
+        when(userRepository.findById(sessionUser.getUuid())).thenReturn(Optional.of(sessionUser));
+
+        ResponseEntity<ApiResponse<User>> response = authController.validateSession(session);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("Found a valid session", Objects.requireNonNull(response.getBody()).getMessage());
+        assertEquals(objMapper.readValue(session.getAttribute("user").toString(), User.class), sessionUser);
+    }
+
+    @Test
+    void testLogoutUser_LoggedOut() throws JsonProcessingException {
+        User sessionUser = new User(UUID.randomUUID());
+        session.setAttribute("user", objMapper.writeValueAsString(sessionUser));
+
+        ResponseEntity<ApiResponse<String>> response = authController.logoutUser(session);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("Your session has been destroyed", Objects.requireNonNull(response.getBody()).getMessage());
+        assertNull(Objects.requireNonNull(response.getBody()).getData());
     }
 }

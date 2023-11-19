@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import de.budgetbuddy.backend.ApiResponse;
 import de.budgetbuddy.backend.user.User;
+import de.budgetbuddy.backend.user.UserRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.AntPathMatcher;
@@ -20,9 +21,17 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpServletRequest;
 
 import java.util.Optional;
+import java.util.UUID;
 
 @Component
 public class AuthorizationInterceptor implements HandlerInterceptor {
+    private final UserRepository userRepository;
+    private final ObjectMapper objMapper = new ObjectMapper().registerModule(new JavaTimeModule());
+
+    public AuthorizationInterceptor(UserRepository userRepository) {
+        this.userRepository = userRepository;
+    }
+
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
         PathMatcher pathMatcher = new AntPathMatcher();
@@ -32,15 +41,31 @@ public class AuthorizationInterceptor implements HandlerInterceptor {
         }
 
         try {
-            if (!AuthorizationInterceptor.isValidUserSession(request.getSession(false))) {
+            String authHeader = request.getHeader("Authorization");
+            if (authHeader == null || !authHeader.startsWith("Bearer")) {
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                 response.setContentType("application/json");
-                response.getWriter().write(new ObjectMapper().writeValueAsString(AuthorizationInterceptor.noValidSessionResponse()));
+                ApiResponse<?> apiResponse = new ApiResponse<>(HttpServletResponse.SC_UNAUTHORIZED, "No Bearer-Token we're provided");
+                response.getWriter().write(new ObjectMapper().writeValueAsString(apiResponse));
                 return false;
             }
 
+            String bearerValue = authHeader.substring("Bearer".length() + 1);
+            UUID uuid = UUID.fromString(bearerValue);
+            Optional<User> optAuthHeaderUser = userRepository.findById(uuid);
+            if (optAuthHeaderUser.isEmpty()) {
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                response.setContentType("application/json");
+                ApiResponse<?> apiResponse = new ApiResponse<>(HttpServletResponse.SC_UNAUTHORIZED, "Provided Bearer-Token is invalid");
+                response.getWriter().write(new ObjectMapper().writeValueAsString(apiResponse));
+                return false;
+            }
+
+            User authHeaderUser = optAuthHeaderUser.get();
+            HttpSession session = request.getSession(true);
+            session.setAttribute("user", objMapper.writeValueAsString(authHeaderUser));
             return true;
-        } catch (JsonProcessingException ex) {
+        } catch (IllegalArgumentException | JsonProcessingException ex) {
             response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
             response.setContentType("application/json");
             ApiResponse<String> apiResponse = new ApiResponse<String>(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "internal-server-error", ex.getMessage());

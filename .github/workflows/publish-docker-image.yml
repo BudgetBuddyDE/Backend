@@ -42,6 +42,8 @@ jobs:
           retention-days: 30
 
   build_image:
+    needs:
+      - test
     name: Build Docker Image
     runs-on: ubuntu-latest
     steps:

@@ -2,8 +2,6 @@ package de.budgetbuddy.backend;
 
 import lombok.Data;
 
-import java.util.ArrayList;
-
 @Data
 public class ApiResponse<T> {
     private int status;

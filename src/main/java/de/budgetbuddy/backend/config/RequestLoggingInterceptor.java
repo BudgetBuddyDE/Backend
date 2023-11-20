@@ -7,15 +7,13 @@ import java.io.InputStreamReader;
 import java.util.HashMap;
 import java.util.Map;
 
-import de.budgetbuddy.backend.log.Log;
 import de.budgetbuddy.backend.log.LogType;
+import de.budgetbuddy.backend.log.Logger;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 import org.springframework.web.servlet.ModelAndView;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpServletRequest;
@@ -29,7 +27,7 @@ public class RequestLoggingInterceptor implements HandlerInterceptor {
 
     @Override
     public void postHandle(HttpServletRequest request, HttpServletResponse response, Object handler, @Nullable ModelAndView modelAndView) throws Exception {
-        this.logRequest(request, response);
+        RequestLoggingInterceptor.logRequest(request, response);
         HandlerInterceptor.super.postHandle(request, response, handler, modelAndView);
     }
 
@@ -38,7 +36,7 @@ public class RequestLoggingInterceptor implements HandlerInterceptor {
         HandlerInterceptor.super.afterCompletion(request, response, handler, ex);
     }
 
-    public void logRequest(HttpServletRequest request, HttpServletResponse response) throws IOException {
+    public static void logRequest(HttpServletRequest request, HttpServletResponse response) throws IOException {
         // FIXME: Prevent sensitive-data to get logged
         String path = request.getRequestURI();
         int status = response.getStatus();
@@ -59,12 +57,11 @@ public class RequestLoggingInterceptor implements HandlerInterceptor {
             logType = LogType.ERROR;
         }
 
-        Log log = new Log(logType, path, message.toString());
-        System.out.println(log);
+        Logger.getInstance().log("Backend", logType, path, message.toString());
     }
 
 
-    public String getBody(HttpServletRequest request) throws IOException {
+    public static String getBody(HttpServletRequest request) throws IOException {
         StringBuilder stringBuilder = new StringBuilder();
         BufferedReader bufferedReader = null;
 

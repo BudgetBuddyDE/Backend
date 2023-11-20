@@ -14,7 +14,7 @@ public class CustomErrorController {
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public ApiResponse<String> handleInternalServerError(Exception ex) {
-        Log log = new Log(LogType.ERROR, "/error", ex.toString());
+        Log log = new Log("Backend", LogType.ERROR, "/error", ex.toString());
         System.out.println(log);
 
         return new ApiResponse<>(

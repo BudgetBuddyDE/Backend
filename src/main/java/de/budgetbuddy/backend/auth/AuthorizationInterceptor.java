@@ -3,6 +3,7 @@ package de.budgetbuddy.backend.auth;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import de.budgetbuddy.backend.ApiResponse;
+import de.budgetbuddy.backend.config.RequestLoggingInterceptor;
 import de.budgetbuddy.backend.user.User;
 import de.budgetbuddy.backend.user.UserRepository;
 import org.springframework.http.HttpStatus;
@@ -47,6 +48,7 @@ public class AuthorizationInterceptor implements HandlerInterceptor {
                 response.setContentType("application/json");
                 ApiResponse<?> apiResponse = new ApiResponse<>(HttpServletResponse.SC_UNAUTHORIZED, "No Bearer-Token we're provided");
                 response.getWriter().write(new ObjectMapper().writeValueAsString(apiResponse));
+                RequestLoggingInterceptor.logRequest(request, response);
                 return false;
             }
 
@@ -58,6 +60,7 @@ public class AuthorizationInterceptor implements HandlerInterceptor {
                 response.setContentType("application/json");
                 ApiResponse<?> apiResponse = new ApiResponse<>(HttpServletResponse.SC_UNAUTHORIZED, "Provided Bearer-Token is invalid");
                 response.getWriter().write(new ObjectMapper().writeValueAsString(apiResponse));
+                RequestLoggingInterceptor.logRequest(request, response);
                 return false;
             }
 
@@ -70,6 +73,7 @@ public class AuthorizationInterceptor implements HandlerInterceptor {
             response.setContentType("application/json");
             ApiResponse<String> apiResponse = new ApiResponse<String>(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "internal-server-error", ex.getMessage());
             response.getWriter().write(new ObjectMapper().writeValueAsString(apiResponse));
+            RequestLoggingInterceptor.logRequest(request, response);
             return false;
         }
     }

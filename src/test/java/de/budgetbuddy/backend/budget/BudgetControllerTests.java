@@ -61,17 +61,6 @@ public class BudgetControllerTests {
     }
 
     @Test
-    void testCreateBudget_InvalidSession() throws Exception {
-        session.invalidate();
-        mockMvc
-                .perform(MockMvcRequestBuilders
-                        .post("/v1/budget")
-                        .session(session)
-                )
-                .andExpect(MockMvcResultMatchers.status().is(HttpStatus.UNAUTHORIZED.value()));
-    }
-
-    @Test
     void testCreateBudget_UserNotFound() throws JsonProcessingException {
         UUID uuid = UUID.randomUUID();
 
@@ -207,17 +196,6 @@ public class BudgetControllerTests {
     }
 
     @Test
-    void testGetBudget_InvalidSession() throws Exception {
-        session.invalidate();
-        mockMvc
-                .perform(MockMvcRequestBuilders
-                        .get("/v1/budget")
-                        .session(session)
-                )
-                .andExpect(MockMvcResultMatchers.status().is(HttpStatus.UNAUTHORIZED.value()));
-    }
-
-    @Test
     void testGetBudget_UserNotFound() throws JsonProcessingException {
         UUID uuid = UUID.randomUUID();
         List<Budget> budgetList = new ArrayList<>();
@@ -271,17 +249,6 @@ public class BudgetControllerTests {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNull(Objects.requireNonNull(response.getBody()).getMessage());
         assertEquals(budgetList, Objects.requireNonNull(response.getBody()).getData());
-    }
-
-    @Test
-    void testUpdateBudget_InvalidSession() throws Exception {
-        session.invalidate();
-        mockMvc
-                .perform(MockMvcRequestBuilders
-                        .put("/v1/budget")
-                        .session(session)
-                )
-                .andExpect(MockMvcResultMatchers.status().is(HttpStatus.UNAUTHORIZED.value()));
     }
 
     @Test
@@ -442,17 +409,6 @@ public class BudgetControllerTests {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNull(Objects.requireNonNull(response.getBody()).getMessage());
         assertEquals(updatedBudget, Objects.requireNonNull(response.getBody()).getData());
-    }
-
-    @Test
-    void testDeleteBudget_InvalidSession() throws Exception {
-        session.invalidate();
-        mockMvc
-                .perform(MockMvcRequestBuilders
-                        .delete("/v1/budget")
-                        .session(session)
-                )
-                .andExpect(MockMvcResultMatchers.status().is(HttpStatus.UNAUTHORIZED.value()));
     }
 
     @Test

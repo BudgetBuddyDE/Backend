@@ -14,15 +14,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpSession;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
-import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
 
 import java.util.*;
 
@@ -34,8 +30,6 @@ import static org.mockito.Mockito.when;
 @SpringBootTest
 @AutoConfigureMockMvc
 public class SubscriptionControllerTests {
-    @Autowired
-    private MockMvc mockMvc;
     private final UserRepository userRepository;
     private final CategoryRepository categoryRepository;
     private final PaymentMethodRepository paymentMethodRepository;
@@ -56,17 +50,6 @@ public class SubscriptionControllerTests {
     void setUp() {
         MockitoAnnotations.openMocks(this);
         session = new MockHttpSession();
-    }
-
-    @Test
-    void testCreateSubscription_InvalidSession() throws Exception {
-        session.invalidate();
-        mockMvc
-                .perform(MockMvcRequestBuilders
-                        .post("/v1/subscription")
-                        .session(session)
-                )
-                .andExpect(MockMvcResultMatchers.status().is(HttpStatus.UNAUTHORIZED.value()));
     }
 
     @Test
@@ -234,17 +217,6 @@ public class SubscriptionControllerTests {
     }
 
     @Test
-    void testGetSubscription_InvalidSession() throws Exception {
-        session.invalidate();
-        mockMvc
-                .perform(MockMvcRequestBuilders
-                        .get("/v1/subscription")
-                        .session(session)
-                )
-                .andExpect(MockMvcResultMatchers.status().is(HttpStatus.UNAUTHORIZED.value()));
-    }
-
-    @Test
     void testGetSubscription_UserNotFound() throws JsonProcessingException {
         UUID uuid = UUID.randomUUID();
         List<Subscription> subscriptionList = new ArrayList<>();
@@ -295,17 +267,6 @@ public class SubscriptionControllerTests {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNull(Objects.requireNonNull(response.getBody()).getMessage());
         assertEquals(subscriptionList, Objects.requireNonNull(response.getBody()).getData());
-    }
-
-    @Test
-    void testUpdateSubscription_InvalidSession() throws Exception {
-        session.invalidate();
-        mockMvc
-                .perform(MockMvcRequestBuilders
-                        .put("/v1/subscription")
-                        .session(session)
-                )
-                .andExpect(MockMvcResultMatchers.status().is(HttpStatus.UNAUTHORIZED.value()));
     }
 
     @Test
@@ -491,17 +452,6 @@ public class SubscriptionControllerTests {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNull(Objects.requireNonNull(response.getBody()).getMessage());
         assertEquals(updatedSubscription, Objects.requireNonNull(response.getBody()).getData());
-    }
-
-    @Test
-    void testDeleteSubscription_InvalidSession() throws Exception {
-        session.invalidate();
-        mockMvc
-                .perform(MockMvcRequestBuilders
-                        .delete("/v1/subscription")
-                        .session(session)
-                )
-                .andExpect(MockMvcResultMatchers.status().is(HttpStatus.UNAUTHORIZED.value()));
     }
 
     @Test

@@ -21,6 +21,7 @@ import io.micrometer.common.lang.Nullable;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpServletRequest;
 
+import java.io.IOException;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -33,6 +34,12 @@ public class AuthorizationInterceptor implements HandlerInterceptor {
         this.userRepository = userRepository;
     }
 
+    /**
+     * Important
+     * The Authorization header should be structured as follows.
+     * `Bearer: UUID.HASHED_PASSWORD`
+     * The values are separated and then verified in the `AuthorizationInterceptor`. The current user for the session is then determined based on the UUID and set as the "user" session attribute.
+     */
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
         PathMatcher pathMatcher = new AntPathMatcher();
@@ -43,24 +50,25 @@ public class AuthorizationInterceptor implements HandlerInterceptor {
 
         try {
             String authHeader = request.getHeader("Authorization");
+
             if (authHeader == null || !authHeader.startsWith("Bearer")) {
-                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                response.setContentType("application/json");
-                ApiResponse<?> apiResponse = new ApiResponse<>(HttpServletResponse.SC_UNAUTHORIZED, "No Bearer-Token we're provided");
-                response.getWriter().write(new ObjectMapper().writeValueAsString(apiResponse));
-                RequestLoggingInterceptor.logRequest(request, response);
+                handleUnauthorizedResponse(request, response, "No Bearer-Token was provided");
                 return false;
             }
 
-            String bearerValue = authHeader.substring("Bearer".length() + 1);
-            UUID uuid = UUID.fromString(bearerValue);
-            Optional<User> optAuthHeaderUser = userRepository.findById(uuid);
+            String bearerTokenValue = authHeader.substring("Bearer".length() + 1);
+            int indexOfFirstDot = bearerTokenValue.indexOf(".");
+            if (indexOfFirstDot == -1) {
+                handleUnauthorizedResponse(request, response, "Invalid Bearer-Token format");
+                return false;
+            }
+
+            UUID uuid = UUID.fromString(bearerTokenValue.substring(0, indexOfFirstDot));
+            String hashedPassword = bearerTokenValue.substring(indexOfFirstDot + 1);
+
+            Optional<User> optAuthHeaderUser = userRepository.findByUuidAndPassword(uuid, hashedPassword);
             if (optAuthHeaderUser.isEmpty()) {
-                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                response.setContentType("application/json");
-                ApiResponse<?> apiResponse = new ApiResponse<>(HttpServletResponse.SC_UNAUTHORIZED, "Provided Bearer-Token is invalid");
-                response.getWriter().write(new ObjectMapper().writeValueAsString(apiResponse));
-                RequestLoggingInterceptor.logRequest(request, response);
+                handleUnauthorizedResponse(request, response, "Provided Bearer-Token is invalid");
                 return false;
             }
 
@@ -69,13 +77,25 @@ public class AuthorizationInterceptor implements HandlerInterceptor {
             session.setAttribute("user", objMapper.writeValueAsString(authHeaderUser));
             return true;
         } catch (IllegalArgumentException | JsonProcessingException ex) {
-            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-            response.setContentType("application/json");
-            ApiResponse<String> apiResponse = new ApiResponse<String>(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "internal-server-error", ex.getMessage());
-            response.getWriter().write(new ObjectMapper().writeValueAsString(apiResponse));
-            RequestLoggingInterceptor.logRequest(request, response);
+            handleErrorResponse(request, response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "internal-server-error", ex.getMessage());
             return false;
         }
+    }
+
+    private void handleUnauthorizedResponse(HttpServletRequest request, HttpServletResponse response, String errorMessage) throws IOException {
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.setContentType("application/json");
+        ApiResponse<?> apiResponse = new ApiResponse<>(HttpServletResponse.SC_UNAUTHORIZED, errorMessage);
+        response.getWriter().write(new ObjectMapper().writeValueAsString(apiResponse));
+        RequestLoggingInterceptor.logRequest(request, response);
+    }
+
+    private void handleErrorResponse(HttpServletRequest request, HttpServletResponse response, int statusCode, String errorType, String errorMessage) throws IOException {
+        response.setStatus(statusCode);
+        response.setContentType("application/json");
+        ApiResponse<String> apiResponse = new ApiResponse<>(statusCode, errorType, errorMessage);
+        response.getWriter().write(new ObjectMapper().writeValueAsString(apiResponse));
+        RequestLoggingInterceptor.logRequest(request, response);
     }
 
     public static boolean isValidUserSession(HttpSession session) {

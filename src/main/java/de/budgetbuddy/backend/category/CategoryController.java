@@ -98,7 +98,9 @@ public class CategoryController {
                     .body(new ApiResponse<>(HttpStatus.CONFLICT.value(), "You can't modify categories from other users"));
         }
 
-        if (categoryRepository.findByOwnerAndName(sessionUser.get(), payload.getName()).isPresent()) {
+        Optional<Category> alreadyExistingCategory = categoryRepository.findByOwnerAndName(sessionUser.get(), payload.getName());
+        if (alreadyExistingCategory.isPresent()
+                && !alreadyExistingCategory.get().getId().equals(payload.getCategoryId())) {
             return ResponseEntity
                     .status(HttpStatus.CONFLICT)
                     .body(new ApiResponse<>(HttpStatus.CONFLICT.value(), "There is already an category by this name"));

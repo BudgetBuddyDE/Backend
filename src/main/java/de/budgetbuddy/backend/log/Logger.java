@@ -20,6 +20,12 @@ public class Logger {
         return instance;
     }
 
+    public void log(Log log) {
+        System.out.println(log);
+        if (this.logRepository == null) return;
+        logRepository.save(log);
+    }
+
     public void log(String application, LogType type, String category, String content) {
         Log log = new Log(application, type, category, content);
         System.out.println(log);

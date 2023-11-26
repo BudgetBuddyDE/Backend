@@ -148,7 +148,8 @@ public class BudgetController {
         }
 
         Budget updatedBudget = new Budget(budget.getId(), category.get(), budget.getOwner(), payload.getBudget(), budget.getCreatedAt());
-        if (budgetRepository.findByOwnerAndCategory(budget.getOwner(), category.get()).isPresent()) {
+        Optional<Budget> existingBudget = budgetRepository.findByOwnerAndCategory(budget.getOwner(), category.get());
+        if (existingBudget.isPresent() && !existingBudget.get().getId().equals(payload.getBudgetId())) {
             return ResponseEntity
                     .status(HttpStatus.CONFLICT)
                     .body(new ApiResponse<>(HttpStatus.CONFLICT.value(), "There is already an budget for this category"));

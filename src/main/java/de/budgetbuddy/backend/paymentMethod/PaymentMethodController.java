@@ -83,9 +83,10 @@ public class PaymentMethodController {
         }
 
         PaymentMethod paymentMethod = requestedPaymentMethod.get();
-        if (paymentMethodRepository
-                .findByOwnerAndNameAndAddress(requestedPaymentMethod.get().getOwner(), payload.getName(), payload.getAddress())
-                .isPresent()) {
+        Optional<PaymentMethod> existingPaymentMethod = paymentMethodRepository
+                .findByOwnerAndNameAndAddress(requestedPaymentMethod.get().getOwner(), payload.getName(), payload.getAddress());
+        if (existingPaymentMethod.isPresent()
+                && !existingPaymentMethod.get().getId().equals(payload.getId())) {
             return ResponseEntity
                     .status(HttpStatus.CONFLICT)
                     .body(new ApiResponse<>(HttpStatus.CONFLICT.value(), "There is already an payment-method by this name and address"));

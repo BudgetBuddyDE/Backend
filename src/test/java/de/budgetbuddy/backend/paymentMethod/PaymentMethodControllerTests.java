@@ -100,7 +100,7 @@ public class PaymentMethodControllerTests {
         User user = new User();
         user.setUuid(uuid);
 
-        PaymentMethod paymentMethod = new PaymentMethod(user, payload.getName(), payload.getAddress(), null);
+        PaymentMethod paymentMethod = new PaymentMethod(user, payload.getName(), payload.getAddress(), payload.getAddress(), null);
 
         User sessionUser = new User();
         sessionUser.setUuid(UUID.randomUUID());
@@ -132,7 +132,7 @@ public class PaymentMethodControllerTests {
 
         session.setAttribute("user", objectMapper.writeValueAsString(user));
 
-        PaymentMethod paymentMethod = new PaymentMethod(user, payload.getName(), payload.getAddress(), null);
+        PaymentMethod paymentMethod = new PaymentMethod(user, payload.getName(), payload.getAddress(), payload.getProvider(), null);
 
         when(userRepository.findById(uuid)).thenReturn(Optional.of(user));
         when(paymentMethodRepository.findByOwnerAndNameAndAddress(user, payload.getName(), paymentMethod.getAddress()))

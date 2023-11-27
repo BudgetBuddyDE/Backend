@@ -52,7 +52,7 @@ public class PaymentMethodController {
                     .body(new ApiResponse<>(HttpStatus.CONFLICT.value(), "You can't create payment-methods for other users"));
         }
 
-        PaymentMethod paymentMethod = new PaymentMethod(user.get(), payload.getName(), payload.getAddress(), payload.getDescription());
+        PaymentMethod paymentMethod = new PaymentMethod(user.get(), payload.getName(), payload.getAddress(), payload.getProvider(), payload.getDescription());
         return ResponseEntity
                 .status(HttpStatus.OK)
                 .body(new ApiResponse<>(paymentMethodRepository.save(paymentMethod)));
@@ -101,7 +101,7 @@ public class PaymentMethodController {
                     .body(new ApiResponse<>(HttpStatus.CONFLICT.value(), "You can't modify payment-methods from other users"));
         }
 
-        PaymentMethod updatedPaymentMethod = new PaymentMethod(paymentMethod.getId(), paymentMethod.getOwner(), payload.getName(), payload.getAddress(), payload.getDescription(), paymentMethod.getCreatedAt());
+        PaymentMethod updatedPaymentMethod = new PaymentMethod(paymentMethod.getId(), paymentMethod.getOwner(), payload.getName(), payload.getAddress(), payload.getProvider(), payload.getDescription(), paymentMethod.getCreatedAt());
         return ResponseEntity
                 .status(HttpStatus.OK)
                 .body(new ApiResponse<>(paymentMethodRepository.save(updatedPaymentMethod)));

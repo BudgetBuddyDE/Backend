@@ -14,6 +14,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.*;
 
 @RestController
@@ -23,12 +24,14 @@ public class TransactionController {
     private final CategoryRepository categoryRepository;
     private final PaymentMethodRepository paymentMethodRepository;
     private final TransactionRepository transactionRepository;
+    private final TransactionService transactionService;
 
     public TransactionController(UserRepository userRepository, CategoryRepository categoryRepository, PaymentMethodRepository paymentMethodRepository, TransactionRepository transactionRepository) {
         this.userRepository = userRepository;
         this.categoryRepository = categoryRepository;
         this.paymentMethodRepository = paymentMethodRepository;
         this.transactionRepository = transactionRepository;
+        this.transactionService = new TransactionService(transactionRepository);
     }
 
     @PostMapping
@@ -179,5 +182,32 @@ public class TransactionController {
         return ResponseEntity
                 .status(HttpStatus.OK)
                 .body(new ApiResponse<>(transaction));
+    }
+
+    @GetMapping("/daily")
+    public ResponseEntity<ApiResponse<List<Transaction.DailyTransaction>>> getDailyTransactions(
+       @RequestParam LocalDate startDate,
+       @RequestParam LocalDate endDate,
+       @RequestParam DailyTransactionType requestedData,
+       HttpSession session
+    ) throws JsonProcessingException {
+        if (startDate.isAfter(endDate)) {
+            return ResponseEntity
+                    .status(400)
+                    .body(new ApiResponse<>(400, "The startDate needs to be before the endDate"));
+        }
+
+        Optional<User> optSessionUser = AuthorizationInterceptor.getSessionUser(session);
+        if (optSessionUser.isEmpty()) {
+            return AuthorizationInterceptor.noValidSessionResponse();
+        }
+
+        return ResponseEntity
+                .status(200)
+                .body(new ApiResponse<>(transactionService.getDailyTransactions(
+                        startDate,
+                        endDate,
+                        requestedData,
+                        optSessionUser.get().getUuid())));
     }
 }

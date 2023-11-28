@@ -64,6 +64,12 @@ public class Transaction {
     }
 
     @Data
+    public static class DailyTransaction {
+        private Date date;
+        private Double amount;
+    }
+
+    @Data
     public static class Create {
         private UUID owner;
         private Long categoryId;

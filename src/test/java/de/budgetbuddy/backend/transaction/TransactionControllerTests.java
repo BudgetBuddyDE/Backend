@@ -20,6 +20,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpSession;
 
+import java.time.LocalDate;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -34,6 +35,7 @@ public class TransactionControllerTests {
     private final CategoryRepository categoryRepository;
     private final PaymentMethodRepository paymentMethodRepository;
     private final TransactionRepository transactionRepository;
+    private final TransactionService transactionService;
     private final TransactionController transactionController;
     private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
     private MockHttpSession session;
@@ -44,6 +46,7 @@ public class TransactionControllerTests {
         this.paymentMethodRepository = Mockito.mock(PaymentMethodRepository.class);
         this.transactionRepository = Mockito.mock(TransactionRepository.class);
         this.transactionController = new TransactionController(userRepository, categoryRepository, paymentMethodRepository, transactionRepository);
+        this.transactionService = new TransactionService(transactionRepository);
     }
 
     @BeforeEach
@@ -450,5 +453,40 @@ public class TransactionControllerTests {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNull(Objects.requireNonNull(response.getBody()).getMessage());
         assertEquals(transaction, Objects.requireNonNull(response.getBody()).getData());
+    }
+
+    @Test
+    void testGetDailyTransactions_InvalidDateRange() throws JsonProcessingException {
+        LocalDate startDate = LocalDate.of(2023, 10, 02);
+        LocalDate endDate = LocalDate.of(2023, 10, 01);
+        DailyTransactionType requestedData = DailyTransactionType.SPENDINGS;
+        ResponseEntity<ApiResponse<List<Transaction.DailyTransaction>>> response =
+                transactionController.getDailyTransactions(startDate, endDate, requestedData, session);
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertEquals("The startDate needs to be before the endDate",
+                Objects.requireNonNull(response.getBody()).getMessage());
+        assertNull(Objects.requireNonNull(response.getBody()).getData());
+    }
+
+    @Test
+    void testGetDailyTransactions_Success() throws JsonProcessingException {
+        User user = new User(UUID.randomUUID());
+        session.setAttribute("user", objectMapper.writeValueAsString(user));
+
+
+        LocalDate startDate = LocalDate.of(2023, 10, 1);
+        LocalDate endDate = LocalDate.of(2023, 10, 7);
+        DailyTransactionType requestedData = DailyTransactionType.SPENDINGS;
+
+        when(transactionService.getDailyTransactions(startDate, endDate, requestedData, user.getUuid()))
+                .thenReturn(new ArrayList<>());
+
+        ResponseEntity<ApiResponse<List<Transaction.DailyTransaction>>> response =
+                transactionController.getDailyTransactions(startDate, endDate, requestedData, session);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNull(Objects.requireNonNull(response.getBody()).getMessage());
+        assertEquals(0, Objects.requireNonNull(response.getBody()).getData().size());
     }
 }

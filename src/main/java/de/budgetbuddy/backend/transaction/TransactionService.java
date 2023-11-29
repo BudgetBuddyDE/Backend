@@ -16,7 +16,7 @@ public class TransactionService {
         this.transactionRepository = transactionRepository;
     }
 
-    List<Transaction.DailyTransaction> getDailyTransactions(LocalDate startDate, LocalDate endDate, DailyTransactionType requestedData, UUID uuid) {
+    public List<Transaction.DailyTransaction> getDailyTransactions(LocalDate startDate, LocalDate endDate, DailyTransactionType requestedData, UUID uuid) {
         List<Transaction.DailyTransaction> dailyTransactions = new ArrayList<>();
         for (Object[] row : transactionRepository.fetchDailyTransactions(startDate, endDate, requestedData.name(), uuid)) {
             Transaction.DailyTransaction dailyTransaction = new Transaction.DailyTransaction();

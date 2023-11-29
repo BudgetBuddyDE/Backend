@@ -7,6 +7,7 @@ import de.budgetbuddy.backend.category.Category;
 import de.budgetbuddy.backend.category.CategoryRepository;
 import de.budgetbuddy.backend.paymentMethod.PaymentMethod;
 import de.budgetbuddy.backend.paymentMethod.PaymentMethodRepository;
+import de.budgetbuddy.backend.subscription.SubscriptionRepository;
 import de.budgetbuddy.backend.user.User;
 import de.budgetbuddy.backend.user.UserRepository;
 import jakarta.servlet.http.HttpSession;
@@ -15,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.time.temporal.TemporalAdjusters;
 import java.util.*;
 
 @RestController
@@ -23,13 +25,15 @@ public class TransactionController {
     private final UserRepository userRepository;
     private final CategoryRepository categoryRepository;
     private final PaymentMethodRepository paymentMethodRepository;
+    private final SubscriptionRepository subscriptionRepository;
     private final TransactionRepository transactionRepository;
     private final TransactionService transactionService;
 
-    public TransactionController(UserRepository userRepository, CategoryRepository categoryRepository, PaymentMethodRepository paymentMethodRepository, TransactionRepository transactionRepository) {
+    public TransactionController(UserRepository userRepository, CategoryRepository categoryRepository, PaymentMethodRepository paymentMethodRepository, SubscriptionRepository subscriptionRepository, TransactionRepository transactionRepository) {
         this.userRepository = userRepository;
         this.categoryRepository = categoryRepository;
         this.paymentMethodRepository = paymentMethodRepository;
+        this.subscriptionRepository = subscriptionRepository;
         this.transactionRepository = transactionRepository;
         this.transactionService = new TransactionService(transactionRepository);
     }
@@ -209,5 +213,40 @@ public class TransactionController {
                         endDate,
                         requestedData,
                         optSessionUser.get().getUuid())));
+    }
+
+    @GetMapping("/stats")
+    public ResponseEntity<ApiResponse<DashboardStats>> getDashboardStats(HttpSession session) throws JsonProcessingException {
+        Optional<User> optSessionUser = AuthorizationInterceptor.getSessionUser(session);
+        if (optSessionUser.isEmpty()) {
+            return AuthorizationInterceptor.noValidSessionResponse();
+        }
+        User sessionUser = optSessionUser.get();
+        UUID sessionUserUUID = sessionUser.getUuid();
+
+        LocalDate today = LocalDate.now();
+        LocalDate firstDayOfMonth = LocalDate.now().withDayOfMonth(1);
+        LocalDate lastDayOfMonth = LocalDate.now().with(TemporalAdjusters.lastDayOfMonth());
+
+        Double receivedEarnings = transactionRepository.getReceivedEarnings(firstDayOfMonth, lastDayOfMonth, sessionUserUUID);
+        Double paidExpenses = transactionRepository.getPaidExpenses(firstDayOfMonth, lastDayOfMonth, sessionUserUUID);
+        Double balance = transactionRepository.getBalance(firstDayOfMonth, lastDayOfMonth, sessionUserUUID);
+
+        Double upcomingSubscriptionEarnings = subscriptionRepository.getUpcomingSubscriptioEarnings(sessionUserUUID);
+        Double upcomingTransactionEarnings = transactionRepository.getReceivedEarnings(today, lastDayOfMonth, sessionUserUUID);
+        Double upcomingSubscriptioExpenses = subscriptionRepository.getUpcomingSubscriptionExpenses(sessionUserUUID);
+        Double upcomingTransactionExpenses = transactionRepository.getPaidExpenses(today, lastDayOfMonth, sessionUserUUID);
+
+        Double upcomingEarnings = upcomingSubscriptionEarnings + upcomingTransactionEarnings;
+        Double upcomingExpenses = upcomingSubscriptioExpenses + upcomingTransactionExpenses;
+
+        return ResponseEntity
+                .status(200)
+                .body(new ApiResponse<>(new DashboardStats(
+                        receivedEarnings,
+                        upcomingEarnings,
+                        Math.abs(paidExpenses),
+                        Math.abs(upcomingExpenses),
+                        balance)));
     }
 }

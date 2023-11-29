@@ -8,6 +8,7 @@ import de.budgetbuddy.backend.category.Category;
 import de.budgetbuddy.backend.category.CategoryRepository;
 import de.budgetbuddy.backend.paymentMethod.PaymentMethod;
 import de.budgetbuddy.backend.paymentMethod.PaymentMethodRepository;
+import de.budgetbuddy.backend.subscription.SubscriptionRepository;
 import de.budgetbuddy.backend.user.User;
 import de.budgetbuddy.backend.user.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -44,8 +45,9 @@ public class TransactionControllerTests {
         this.userRepository = Mockito.mock(UserRepository.class);
         this.categoryRepository = Mockito.mock(CategoryRepository.class);
         this.paymentMethodRepository = Mockito.mock(PaymentMethodRepository.class);
+        SubscriptionRepository subscriptionRepository = Mockito.mock(SubscriptionRepository.class);
         this.transactionRepository = Mockito.mock(TransactionRepository.class);
-        this.transactionController = new TransactionController(userRepository, categoryRepository, paymentMethodRepository, transactionRepository);
+        this.transactionController = new TransactionController(userRepository, categoryRepository, paymentMethodRepository, subscriptionRepository, transactionRepository);
         this.transactionService = new TransactionService(transactionRepository);
     }
 

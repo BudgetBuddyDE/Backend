@@ -19,4 +19,19 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
             @Param("requested_data") String requestedData,
             @Param("user_id") UUID userId
     );
+
+    @Query(value = "select sum(amount) from f_get_daily_transactions(:start_date, :end_date, 'INCOME', :user_id)", nativeQuery = true)
+    Double getReceivedEarnings(@Param("start_date") LocalDate startDate,
+                               @Param("end_date") LocalDate endDate,
+                               @Param("user_id") UUID userId);
+
+    @Query(value = "select sum(amount) from f_get_daily_transactions(:start_date, :end_date, 'SPENDINGS', :user_id)", nativeQuery = true)
+    Double getPaidExpenses(@Param("start_date") LocalDate startDate,
+                           @Param("end_date") LocalDate endDate,
+                           @Param("user_id") UUID userId);
+
+    @Query(value = "select sum(amount) from f_get_daily_transactions(:start_date, :end_date, 'BALANCE', :user_id)", nativeQuery = true)
+    Double getBalance(@Param("start_date") LocalDate startDate,
+                      @Param("end_date") LocalDate endDate,
+                      @Param("user_id") UUID userId);
 }

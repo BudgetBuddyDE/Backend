@@ -9,6 +9,7 @@ import org.hibernate.annotations.ColumnDefault;
 import org.mindrot.jbcrypt.BCrypt;
 
 import java.util.Date;
+import java.util.Objects;
 import java.util.UUID;
 
 @Entity
@@ -47,4 +48,35 @@ public class User {
         password = BCrypt.hashpw(password, BCrypt.gensalt(10));
     }
 
+    public void update(User.Update payload) {
+        email = payload.getEmail();
+        name = payload.getName();
+        surname = payload.getSurname();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        User user = (User) o;
+        return uuid.equals(user.uuid) &&
+            Objects.equals(email, user.email) &&
+            Objects.equals(name, user.name) &&
+            Objects.equals(surname, user.surname) &&
+            Objects.equals(password, user.password) &&
+            Objects.equals(createdAt, user.createdAt);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(uuid, email, name, surname, password, createdAt);
+    }
+
+    @Data
+    public static class Update {
+        private UUID uuid;
+        private String name;
+        private String surname;
+        private String email;
+    }
 }

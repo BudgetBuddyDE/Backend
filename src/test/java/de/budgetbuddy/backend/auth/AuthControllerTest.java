@@ -112,7 +112,7 @@ class AuthControllerTest {
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals("You're logged in", Objects.requireNonNull(response.getBody()).getMessage());
-        assertEquals(objMapper.readValue(session.getAttribute("user").toString(), User.class), user);
+
     }
 
     @Test

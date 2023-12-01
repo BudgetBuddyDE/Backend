@@ -11,6 +11,8 @@ import de.budgetbuddy.backend.paymentMethod.PaymentMethodRepository;
 import de.budgetbuddy.backend.subscription.SubscriptionRepository;
 import de.budgetbuddy.backend.user.User;
 import de.budgetbuddy.backend.user.UserRepository;
+import de.budgetbuddy.backend.user.role.Role;
+import de.budgetbuddy.backend.user.role.RolePermission;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -143,9 +145,52 @@ public class TransactionControllerTests {
         ResponseEntity<ApiResponse<Transaction>> response = transactionController.createTransaction(payload, session);
 
         assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
-        assertEquals("Your transaction owner has to be your session-user",
+        assertEquals("You don't have the permissions to create transactions for a different user",
                 Objects.requireNonNull(response.getBody()).getMessage());
         assertNull(Objects.requireNonNull(response.getBody()).getData());
+    }
+
+    @Test
+    void testCreateTransaction_WithSupportUSerSuccess() throws JsonProcessingException {
+        User sessionUser = new User(UUID.randomUUID());
+        sessionUser.setRole(new Role(RolePermission.SERVICE_ACCOUNT));
+        session.setAttribute("user", objectMapper.writeValueAsString(sessionUser));
+        UUID uuid = UUID.randomUUID();
+        User owner = new User(uuid);
+
+        Category category = new Category();
+        category.setId(1L);
+        category.setOwner(owner);
+
+        PaymentMethod paymentMethod = new PaymentMethod();
+        paymentMethod.setId(1L);
+        paymentMethod.setOwner(owner);
+
+        Transaction.Create payload = new Transaction.Create();
+        payload.setOwner(uuid);
+        payload.setCategoryId(category.getId());
+        payload.setPaymentMethodId(paymentMethod.getId());
+
+        Transaction transaction = new Transaction();
+        transaction.setId(1L);
+        transaction.setOwner(owner);
+        transaction.setCategory(category);
+        transaction.setPaymentMethod(paymentMethod);
+
+        when(userRepository.findById(payload.getOwner()))
+                .thenReturn(Optional.of(owner));
+        when(categoryRepository.findByIdAndOwner(payload.getCategoryId(), owner))
+                .thenReturn(Optional.of(category));
+        when(paymentMethodRepository.findByIdAndOwner(payload.getPaymentMethodId(), owner))
+                .thenReturn(Optional.of(paymentMethod));
+        when(transactionRepository.save(any(Transaction.class)))
+                .thenReturn(transaction);
+
+        ResponseEntity<ApiResponse<Transaction>> response = transactionController.createTransaction(payload, session);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNull(Objects.requireNonNull(response.getBody()).getMessage());
+        assertEquals(transaction, Objects.requireNonNull(response.getBody()).getData());
     }
 
     @Test
@@ -210,15 +255,37 @@ public class TransactionControllerTests {
 
         UUID uuid = UUID.randomUUID();
         User owner = new User(uuid);
-        List<Transaction> transactionList = new ArrayList<>();
 
         when(userRepository.findById(uuid)).thenReturn(Optional.of(owner));
 
         ResponseEntity<ApiResponse<List<Transaction>>> response = transactionController.getTransactionsByUuid(uuid, session);
 
         assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
-        assertEquals("You can't retrieve transactions of different users",
+        assertEquals("You don't have the permissions to retrieve transactions from a different user",
                 Objects.requireNonNull(response.getBody()).getMessage());
+        assertNull(Objects.requireNonNull(response.getBody()).getData());
+    }
+
+    @Test
+    void testGetTransaction_WithSupportUserSuccess() throws JsonProcessingException {
+        User sessionUser = new User(UUID.randomUUID());
+        sessionUser.setRole(new Role(RolePermission.SERVICE_ACCOUNT));
+        session.setAttribute("user", objectMapper.writeValueAsString(sessionUser));
+
+        UUID uuid = UUID.randomUUID();
+        User owner = new User(uuid);
+
+        List<Transaction> transactionList = new ArrayList<>();
+
+        when(userRepository.findById(uuid))
+                .thenReturn(Optional.of(owner));
+        when(transactionRepository.findAllByOwner(owner))
+                .thenReturn(transactionList);
+
+        ResponseEntity<ApiResponse<List<Transaction>>> response = transactionController.getTransactionsByUuid(uuid, session);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNull(Objects.requireNonNull(response.getBody()).getMessage());
         assertEquals(transactionList, Objects.requireNonNull(response.getBody()).getData());
     }
 

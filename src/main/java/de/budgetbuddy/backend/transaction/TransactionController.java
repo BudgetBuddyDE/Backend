@@ -10,6 +10,7 @@ import de.budgetbuddy.backend.paymentMethod.PaymentMethodRepository;
 import de.budgetbuddy.backend.subscription.SubscriptionRepository;
 import de.budgetbuddy.backend.user.User;
 import de.budgetbuddy.backend.user.UserRepository;
+import de.budgetbuddy.backend.user.role.RolePermission;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -52,10 +53,15 @@ public class TransactionController {
         Optional<User> optSessionUser = AuthorizationInterceptor.getSessionUser(session);
         if (optSessionUser.isEmpty()) {
             return AuthorizationInterceptor.noValidSessionResponse();
-        } else if (!optSessionUser.get().getUuid().equals(transactionOwner.getUuid())) {
-            return ResponseEntity
-                    .status(HttpStatus.CONFLICT)
-                    .body(new ApiResponse<>(HttpStatus.CONFLICT.value(), "Your transaction owner has to be your session-user"));
+        } else {
+            User sessionUser = optSessionUser.get();
+            if (!sessionUser.getUuid().equals(transactionOwner.getUuid())
+                    && !sessionUser.getRole().isGreaterOrEqualThan(RolePermission.SERVICE_ACCOUNT)) {
+                return ResponseEntity
+                        .status(HttpStatus.CONFLICT)
+                        .body(new ApiResponse<>(HttpStatus.CONFLICT.value(), "You don't have the permissions to create transactions for a different user"));
+
+            }
         }
 
         Optional<Category> optCategory = categoryRepository.findByIdAndOwner(payload.getCategoryId(), transactionOwner);
@@ -99,10 +105,15 @@ public class TransactionController {
         Optional<User> optSessionUser = AuthorizationInterceptor.getSessionUser(session);
         if (optSessionUser.isEmpty()) {
             return AuthorizationInterceptor.noValidSessionResponse();
-        } else if (!optSessionUser.get().getUuid().equals(uuid)) {
-            return ResponseEntity
-                    .status(HttpStatus.CONFLICT)
-                    .body(new ApiResponse<>(HttpStatus.CONFLICT.value(), "You can't retrieve transactions of different users", new ArrayList<>()));
+        } else {
+            User sessionUser = optSessionUser.get();
+            if (!sessionUser.getUuid().equals(uuid)
+                    && !sessionUser.getRole().isGreaterOrEqualThan(RolePermission.SERVICE_ACCOUNT)) {
+                return ResponseEntity
+                        .status(HttpStatus.CONFLICT)
+                        .body(new ApiResponse<>(HttpStatus.CONFLICT.value(), "You don't have the permissions to retrieve transactions from a different user"));
+
+            }
         }
 
         List<Transaction> transactions = transactionRepository.findAllByOwnerOrderByProcessedAtDesc(user.get());

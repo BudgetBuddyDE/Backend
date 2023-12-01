@@ -6,6 +6,8 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import de.budgetbuddy.backend.ApiResponse;
 import de.budgetbuddy.backend.user.User;
 import de.budgetbuddy.backend.user.UserRepository;
+import de.budgetbuddy.backend.user.role.Role;
+import de.budgetbuddy.backend.user.role.RolePermission;
 import jakarta.servlet.http.HttpSession;
 import org.mindrot.jbcrypt.BCrypt;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,6 +41,10 @@ public class AuthController {
         }
 
         user.hashPassword();
+        if (user.getRole() == null) {
+            user.setRole(new Role(RolePermission.BASIC));
+        }
+
         return ResponseEntity
                 .status(HttpStatus.OK)
                 .body(new ApiResponse<>(userRepository.save(user)));

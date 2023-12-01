@@ -1,5 +1,7 @@
 package de.budgetbuddy.backend.user;
 
+import de.budgetbuddy.backend.user.role.Role;
+import de.budgetbuddy.backend.user.role.RolePermission;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
 import lombok.Data;
@@ -22,6 +24,10 @@ public class User {
     @Column(columnDefinition = "uuid", updatable = false, nullable = false)
     private UUID uuid;
 
+    @OneToOne
+    @JoinColumn(name = "role")
+    private Role role;
+
     @Column(name = "email", nullable = false)
     private String email;
 
@@ -42,6 +48,7 @@ public class User {
 
     public User(UUID uuid) {
         this.uuid = uuid;
+        this.role = new Role(RolePermission.BASIC);
     }
 
     public void hashPassword() {

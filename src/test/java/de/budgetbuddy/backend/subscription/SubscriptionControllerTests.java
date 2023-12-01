@@ -10,6 +10,8 @@ import de.budgetbuddy.backend.paymentMethod.PaymentMethod;
 import de.budgetbuddy.backend.paymentMethod.PaymentMethodRepository;
 import de.budgetbuddy.backend.user.User;
 import de.budgetbuddy.backend.user.UserRepository;
+import de.budgetbuddy.backend.user.role.Role;
+import de.budgetbuddy.backend.user.role.RolePermission;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -168,9 +170,54 @@ public class SubscriptionControllerTests {
         ResponseEntity<ApiResponse<Subscription>> response = subscriptionController.createSubscription(payload, session);
 
         assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
-        assertEquals("Your subscription owner has to be your session-user",
+        assertEquals("You don't have the permissions to create subscriptions for a different user",
                 Objects.requireNonNull(response.getBody()).getMessage());
         assertNull(Objects.requireNonNull(response.getBody()).getData());
+    }
+
+    @Test
+    void testCreateSubscription_WithSupportUserSuccess() throws JsonProcessingException {
+        User sessionUser = new User(UUID.randomUUID());
+        sessionUser.setRole(new Role(RolePermission.SERVICE_ACCOUNT));
+        session.setAttribute("user", objectMapper.writeValueAsString(sessionUser));
+        UUID uuid = UUID.randomUUID();
+        User owner = new User(uuid);
+
+        Category category = new Category();
+        category.setId(1L);
+        category.setOwner(owner);
+
+        PaymentMethod paymentMethod = new PaymentMethod();
+        paymentMethod.setId(1L);
+        paymentMethod.setOwner(owner);
+
+        Subscription.Create payload = new Subscription.Create();
+        payload.setOwner(uuid);
+        payload.setExecuteAt(1);
+        payload.setCategoryId(category.getId());
+        payload.setPaymentMethodId(paymentMethod.getId());
+        payload.setPaused(false);
+
+        Subscription subscription = new Subscription();
+        subscription.setId(1L);
+        subscription.setOwner(owner);
+        subscription.setCategory(category);
+        subscription.setPaymentMethod(paymentMethod);
+
+        when(userRepository.findById(payload.getOwner()))
+                .thenReturn(Optional.of(owner));
+        when(categoryRepository.findByIdAndOwner(payload.getCategoryId(), owner))
+                .thenReturn(Optional.of(category));
+        when(paymentMethodRepository.findByIdAndOwner(payload.getPaymentMethodId(), owner))
+                .thenReturn(Optional.of(paymentMethod));
+        when(subscriptionRepository.save(any(Subscription.class)))
+                .thenReturn(subscription);
+
+        ResponseEntity<ApiResponse<Subscription>> response = subscriptionController.createSubscription(payload, session);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNull(Objects.requireNonNull(response.getBody()).getMessage());
+        assertEquals(subscription, Objects.requireNonNull(response.getBody()).getData());
     }
 
     @Test
@@ -237,15 +284,37 @@ public class SubscriptionControllerTests {
 
         UUID uuid = UUID.randomUUID();
         User owner = new User(uuid);
-        List<Subscription> subscriptionList = new ArrayList<>();
 
         when(userRepository.findById(uuid)).thenReturn(Optional.of(owner));
 
         ResponseEntity<ApiResponse<List<Subscription>>> response = subscriptionController.getSubscriptionsByUuid(uuid, session);
 
         assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
-        assertEquals("You can't retrieve subscriptions of different users",
+        assertEquals("You don't have the permissions to retrieve subscriptions from a different user",
                 Objects.requireNonNull(response.getBody()).getMessage());
+        assertNull(Objects.requireNonNull(response.getBody()).getData());
+    }
+
+    @Test
+    void testGetSubscription_WithSupportUserSuccess() throws JsonProcessingException {
+        User sessionUser = new User(UUID.randomUUID());
+        sessionUser.setRole(new Role(RolePermission.SERVICE_ACCOUNT));
+        session.setAttribute("user", objectMapper.writeValueAsString(sessionUser));
+
+        UUID uuid = UUID.randomUUID();
+        User owner = new User(uuid);
+
+        List<Subscription> subscriptionList = new ArrayList<>();
+
+        when(userRepository.findById(uuid))
+                .thenReturn(Optional.of(owner));
+        when(subscriptionRepository.findAllByOwner(owner))
+                .thenReturn(subscriptionList);
+
+        ResponseEntity<ApiResponse<List<Subscription>>> response = subscriptionController.getSubscriptionsByUuid(uuid, session);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNull(Objects.requireNonNull(response.getBody()).getMessage());
         assertEquals(subscriptionList, Objects.requireNonNull(response.getBody()).getData());
     }
 

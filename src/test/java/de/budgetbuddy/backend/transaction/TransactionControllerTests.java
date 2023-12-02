@@ -15,6 +15,7 @@ import de.budgetbuddy.backend.user.role.Role;
 import de.budgetbuddy.backend.user.role.RolePermission;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -74,7 +75,8 @@ public class TransactionControllerTests {
         when(categoryRepository.findByIdAndOwner(payload.getCategoryId(), owner))
                 .thenReturn(Optional.empty());
 
-        ResponseEntity<ApiResponse<Transaction>> response = transactionController.createTransaction(payload, session);
+        ResponseEntity<ApiResponse<List<Transaction>>> response = transactionController
+                .createTransaction(List.of(payload), session);
 
         assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
         assertEquals("Provided category not found",
@@ -104,7 +106,8 @@ public class TransactionControllerTests {
         when(paymentMethodRepository.findByIdAndOwner(payload.getPaymentMethodId(), owner))
                 .thenReturn(Optional.empty());
 
-        ResponseEntity<ApiResponse<Transaction>> response = transactionController.createTransaction(payload, session);
+        ResponseEntity<ApiResponse<List<Transaction>>> response = transactionController
+                .createTransaction(List.of(payload), session);
 
         assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
         assertEquals("Provided payment-method not found",
@@ -114,6 +117,10 @@ public class TransactionControllerTests {
 
     @Test
     void testCreateTransaction_PayloadOwnerNotFound() throws JsonProcessingException {
+        User sessionAdminUser = new User(UUID.randomUUID());
+        sessionAdminUser.setRole(new Role(RolePermission.ADMIN));
+        session.setAttribute("user", objectMapper.writeValueAsString(sessionAdminUser));
+
         UUID uuid = UUID.randomUUID();
         Transaction.Create payload = new Transaction.Create();
         payload.setOwner(uuid);
@@ -121,7 +128,8 @@ public class TransactionControllerTests {
         when(userRepository.findById(payload.getOwner()))
                 .thenReturn(Optional.empty());
 
-        ResponseEntity<ApiResponse<Transaction>> response = transactionController.createTransaction(payload, session);
+        ResponseEntity<ApiResponse<List<Transaction>>> response = transactionController
+                .createTransaction(List.of(payload), session);
 
         assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
         assertEquals("Provided owner not found",
@@ -142,7 +150,8 @@ public class TransactionControllerTests {
         when(userRepository.findById(payload.getOwner()))
                 .thenReturn(Optional.of(owner));
 
-        ResponseEntity<ApiResponse<Transaction>> response = transactionController.createTransaction(payload, session);
+        ResponseEntity<ApiResponse<List<Transaction>>> response = transactionController
+                .createTransaction(List.of(payload), session);
 
         assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
         assertEquals("You don't have the permissions to create transactions for a different user",
@@ -151,7 +160,7 @@ public class TransactionControllerTests {
     }
 
     @Test
-    void testCreateTransaction_WithSupportUSerSuccess() throws JsonProcessingException {
+    void testCreateTransaction_WithSupportUserSuccess() throws JsonProcessingException {
         User sessionUser = new User(UUID.randomUUID());
         sessionUser.setRole(new Role(RolePermission.SERVICE_ACCOUNT));
         session.setAttribute("user", objectMapper.writeValueAsString(sessionUser));
@@ -183,14 +192,15 @@ public class TransactionControllerTests {
                 .thenReturn(Optional.of(category));
         when(paymentMethodRepository.findByIdAndOwner(payload.getPaymentMethodId(), owner))
                 .thenReturn(Optional.of(paymentMethod));
-        when(transactionRepository.save(any(Transaction.class)))
-                .thenReturn(transaction);
+        when(transactionRepository.saveAll(ArgumentMatchers.anyList()))
+                .thenReturn(List.of(transaction));
 
-        ResponseEntity<ApiResponse<Transaction>> response = transactionController.createTransaction(payload, session);
+        ResponseEntity<ApiResponse<List<Transaction>>> response = transactionController
+                .createTransaction(List.of(payload), session);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNull(Objects.requireNonNull(response.getBody()).getMessage());
-        assertEquals(transaction, Objects.requireNonNull(response.getBody()).getData());
+        assertEquals(List.of(transaction), Objects.requireNonNull(response.getBody()).getData());
     }
 
     @Test
@@ -224,14 +234,15 @@ public class TransactionControllerTests {
                 .thenReturn(Optional.of(category));
         when(paymentMethodRepository.findByIdAndOwner(payload.getPaymentMethodId(), owner))
                 .thenReturn(Optional.of(paymentMethod));
-        when(transactionRepository.save(any(Transaction.class)))
-                .thenReturn(transaction);
+        when(transactionRepository.saveAll(ArgumentMatchers.anyList()))
+                .thenReturn(List.of(transaction));
 
-        ResponseEntity<ApiResponse<Transaction>> response = transactionController.createTransaction(payload, session);
+        ResponseEntity<ApiResponse<List<Transaction>>> response = transactionController
+                .createTransaction(List.of(payload), session);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNull(Objects.requireNonNull(response.getBody()).getMessage());
-        assertEquals(transaction, Objects.requireNonNull(response.getBody()).getData());
+        assertEquals(List.of(transaction), Objects.requireNonNull(response.getBody()).getData());
     }
 
     @Test

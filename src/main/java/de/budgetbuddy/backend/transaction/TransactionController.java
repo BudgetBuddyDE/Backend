@@ -40,57 +40,64 @@ public class TransactionController {
     }
 
     @PostMapping
-    public ResponseEntity<ApiResponse<Transaction>> createTransaction(@RequestBody Transaction.Create payload, HttpSession session) throws JsonProcessingException {
-        UUID transactionOwnerUuid = payload.getOwner();
-        Optional<User> optTransactionOwner = userRepository.findById(transactionOwnerUuid);
-        if (optTransactionOwner.isEmpty()) {
-            return ResponseEntity
-                    .status(HttpStatus.NOT_FOUND)
-                    .body(new ApiResponse<>(HttpStatus.NOT_FOUND.value(), "Provided owner not found"));
-        }
-
-        User transactionOwner = optTransactionOwner.get();
+    public ResponseEntity<ApiResponse<List<Transaction>>> createTransaction(@RequestBody List<Transaction.Create> payload, HttpSession session) throws JsonProcessingException {
         Optional<User> optSessionUser = AuthorizationInterceptor.getSessionUser(session);
         if (optSessionUser.isEmpty()) {
             return AuthorizationInterceptor.noValidSessionResponse();
-        } else {
-            User sessionUser = optSessionUser.get();
+        }
+
+        List<Transaction> transactions = new ArrayList<>();
+        User sessionUser = optSessionUser.get();
+        for (Transaction.Create transactionAttrs : payload) {
+            UUID transactionOwnerUuid = transactionAttrs.getOwner();
+            Optional<User> optTransactionOwner = userRepository.findById(transactionOwnerUuid);
+
+            if (optTransactionOwner.isEmpty()) {
+                return ResponseEntity
+                        .status(HttpStatus.NOT_FOUND)
+                        .body(new ApiResponse<>(HttpStatus.NOT_FOUND.value(), "Provided owner not found"));
+            }
+
+            User transactionOwner = optTransactionOwner.get();
+
             if (!sessionUser.getUuid().equals(transactionOwner.getUuid())
                     && !sessionUser.getRole().isGreaterOrEqualThan(RolePermission.SERVICE_ACCOUNT)) {
                 return ResponseEntity
                         .status(HttpStatus.CONFLICT)
                         .body(new ApiResponse<>(HttpStatus.CONFLICT.value(), "You don't have the permissions to create transactions for a different user"));
-
             }
-        }
 
-        Optional<Category> optCategory = categoryRepository.findByIdAndOwner(payload.getCategoryId(), transactionOwner);
-        if (optCategory.isEmpty()) {
-            return ResponseEntity
-                    .status(HttpStatus.NOT_FOUND)
-                    .body(new ApiResponse<>(HttpStatus.NOT_FOUND.value(), "Provided category not found"));
-        }
+            Optional<Category> optCategory = categoryRepository
+                    .findByIdAndOwner(transactionAttrs.getCategoryId(), transactionOwner);
+            if (optCategory.isEmpty()) {
+                return ResponseEntity
+                        .status(HttpStatus.NOT_FOUND)
+                        .body(new ApiResponse<>(HttpStatus.NOT_FOUND.value(), "Provided category not found"));
+            }
 
-        Optional<PaymentMethod> optPaymentMethod = paymentMethodRepository.findByIdAndOwner(payload.getPaymentMethodId(), transactionOwner);
-        if (optPaymentMethod.isEmpty()) {
-            return ResponseEntity
-                    .status(HttpStatus.NOT_FOUND)
-                    .body(new ApiResponse<>(HttpStatus.NOT_FOUND.value(), "Provided payment-method not found"));
-        }
+            Optional<PaymentMethod> optPaymentMethod = paymentMethodRepository.findByIdAndOwner(transactionAttrs.getPaymentMethodId(), transactionOwner);
+            if (optPaymentMethod.isEmpty()) {
+                return ResponseEntity
+                        .status(HttpStatus.NOT_FOUND)
+                        .body(new ApiResponse<>(HttpStatus.NOT_FOUND.value(), "Provided payment-method not found"));
+            }
 
-        Transaction transaction = new Transaction(
-                transactionOwner,
-                optCategory.get(),
-                optPaymentMethod.get(),
-                payload.getProcessedAt(),
-                payload.getReceiver(),
-                payload.getDescription(),
-                payload.getTransferAmount()
-        );
+            Transaction transaction = new Transaction(
+                    transactionOwner,
+                    optCategory.get(),
+                    optPaymentMethod.get(),
+                    transactionAttrs.getProcessedAt(),
+                    transactionAttrs.getReceiver(),
+                    transactionAttrs.getDescription(),
+                    transactionAttrs.getTransferAmount()
+            );
+
+            transactions.add(transaction);
+        }
 
         return ResponseEntity
                 .status(HttpStatus.OK)
-                .body(new ApiResponse<>(transactionRepository.save(transaction)));
+                .body(new ApiResponse<>(transactionRepository.saveAll(transactions)));
     }
 
     @GetMapping

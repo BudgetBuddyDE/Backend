@@ -264,6 +264,67 @@ public class SubscriptionControllerTests {
     }
 
     @Test
+    void testGetSubscriptions_NoSessionUser() throws JsonProcessingException {
+        ResponseEntity<ApiResponse<List<Subscription>>> response = subscriptionController
+                .getSubscriptions(1, false, session);
+
+        assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
+        assertEquals("No valid session found. Sign in first",
+                Objects.requireNonNull(response.getBody()).getMessage());
+        assertNull(Objects.requireNonNull(response.getBody()).getData());
+    }
+
+    @Test
+    void testGetSubscriptions_InvalidSessionUserRole() throws JsonProcessingException {
+        User sessionUser = new User(UUID.randomUUID());
+        sessionUser.setRole(new Role(RolePermission.BASIC));
+        session.setAttribute("user", objectMapper.writeValueAsString(sessionUser));
+
+        ResponseEntity<ApiResponse<List<Subscription>>> response = subscriptionController
+                .getSubscriptions(1, false, session);
+
+        assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
+        assertEquals("You don't have the permissions to retrieve subscriptions",
+                Objects.requireNonNull(response.getBody()).getMessage());
+        assertNull(Objects.requireNonNull(response.getBody()).getData());
+    }
+
+    @Test
+    void testGetSubscription_InvalidDateRange() throws JsonProcessingException {
+        User sessionUser = new User(UUID.randomUUID());
+        sessionUser.setRole(new Role(RolePermission.SERVICE_ACCOUNT));
+        session.setAttribute("user", objectMapper.writeValueAsString(sessionUser));
+
+        ResponseEntity<ApiResponse<List<Subscription>>> response = subscriptionController
+                .getSubscriptions(-4, false, session);
+
+        assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
+        assertEquals("Execution must lay between the first and 31nd of the month",
+                Objects.requireNonNull(response.getBody()).getMessage());
+        assertNull(Objects.requireNonNull(response.getBody()).getData());
+    }
+
+    @Test
+    void testGetSubscriptions_Success() throws JsonProcessingException {
+        User sessionUser = new User(UUID.randomUUID());
+        sessionUser.setRole(new Role(RolePermission.SERVICE_ACCOUNT));
+        session.setAttribute("user", objectMapper.writeValueAsString(sessionUser));
+
+        List<Subscription> subscriptionList = new ArrayList<>();
+        int executeAt = 1;
+        boolean paused = false;
+        when(subscriptionRepository.findAllByExecuteAtAndPaused(executeAt, paused))
+                .thenReturn(subscriptionList);
+
+        ResponseEntity<ApiResponse<List<Subscription>>> response = subscriptionController
+                .getSubscriptions(executeAt, paused, session);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNull(Objects.requireNonNull(response.getBody()).getMessage());
+        assertEquals(subscriptionList, Objects.requireNonNull(response.getBody()).getData());
+    }
+
+    @Test
     void testGetSubscription_UserNotFound() throws JsonProcessingException {
         UUID uuid = UUID.randomUUID();
         List<Subscription> subscriptionList = new ArrayList<>();

@@ -29,7 +29,11 @@ public class SubscriptionController {
     private final PaymentMethodRepository paymentMethodRepository;
     private final SubscriptionRepository subscriptionRepository;
 
-    public SubscriptionController(UserRepository userRepository, CategoryRepository categoryRepository, PaymentMethodRepository paymentMethodRepository, SubscriptionRepository subscriptionRepository) {
+    public SubscriptionController(
+            UserRepository userRepository,
+            CategoryRepository categoryRepository,
+            PaymentMethodRepository paymentMethodRepository,
+            SubscriptionRepository subscriptionRepository) {
         this.userRepository = userRepository;
         this.categoryRepository = categoryRepository;
         this.paymentMethodRepository = paymentMethodRepository;
@@ -37,7 +41,9 @@ public class SubscriptionController {
     }
 
     @PostMapping
-    public ResponseEntity<ApiResponse<Subscription>> createSubscription(@RequestBody Subscription.Create payload, HttpSession session) throws JsonProcessingException {
+    public ResponseEntity<ApiResponse<Subscription>> createSubscription(
+            @RequestBody Subscription.Create payload,
+            HttpSession session) throws JsonProcessingException {
         if (!Subscription.isValidExecutionDate(payload.getExecuteAt())) {
             return ResponseEntity
                     .status(HttpStatus.CONFLICT)

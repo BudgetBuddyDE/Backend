@@ -6,16 +6,19 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import de.budgetbuddy.backend.ApiResponse;
 import de.budgetbuddy.backend.user.User;
 import de.budgetbuddy.backend.user.UserRepository;
+import de.budgetbuddy.backend.user.role.Role;
+import de.budgetbuddy.backend.user.role.RolePermission;
 import jakarta.servlet.http.HttpSession;
+import org.apache.coyote.Response;
+import org.hibernate.engine.transaction.internal.jta.JtaStatusHelper;
 import org.mindrot.jbcrypt.BCrypt;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
+import java.util.Objects;
 import java.util.Optional;
 
 @RestController
@@ -30,7 +33,10 @@ public class AuthController {
     }
 
     @PostMapping(value = "/register")
-    public ResponseEntity<ApiResponse<User>> register(@RequestBody User user) {
+    public ResponseEntity<ApiResponse<User>> register(
+            @RequestBody User user,
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorizationHeader
+    ) {
         Optional<User> optionalUser = userRepository.findByEmail(user.getEmail());
         if (optionalUser.isPresent()) {
             return ResponseEntity
@@ -39,6 +45,46 @@ public class AuthController {
         }
 
         user.hashPassword();
+        if (user.getRole() == null) {
+            user.setRole(new Role(RolePermission.BASIC));
+        } else if (user.getRole().isGreaterOrEqualThan(RolePermission.SERVICE_ACCOUNT)) {
+            if (Objects.isNull(authorizationHeader) || authorizationHeader.isEmpty()) {
+                return ResponseEntity
+                        .status(HttpStatus.UNAUTHORIZED)
+                        .body(new ApiResponse<>(
+                                HttpStatus.UNAUTHORIZED.value(),
+                                "You need to verify yourself in order to proceed"));
+            }
+
+            AuthorizationInterceptor.AuthValues authValues = AuthorizationInterceptor
+                    .retrieveTokenValue(authorizationHeader);
+            if (authValues.getUuid() == null || authValues.getHashedPassword() == null) {
+                return ResponseEntity
+                        .status(HttpStatus.UNAUTHORIZED)
+                        .body(new ApiResponse<>(
+                                HttpStatus.UNAUTHORIZED.value(),
+                                "Your provided Bearer-Token is not correctly formatted"));
+            }
+
+            Optional<User> authUser = userRepository
+                    .findByUuidAndPassword(authValues.getUuid(), authValues.getHashedPassword());
+            if (authUser.isEmpty()) {
+                return ResponseEntity
+                        .status(HttpStatus.UNAUTHORIZED)
+                        .body(new ApiResponse<>(
+                                HttpStatus.UNAUTHORIZED.value(),
+                                "Your provided credentials are invalid"));
+            }
+
+            if (!authUser.get().getRole().isGreaterOrEqualThan(RolePermission.ADMIN)) {
+                return ResponseEntity
+                        .status(HttpStatus.UNAUTHORIZED)
+                        .body(new ApiResponse<>(
+                                HttpStatus.UNAUTHORIZED.value(),
+                                "You don't have the permissions to create this user"));
+            }
+        }
+
         return ResponseEntity
                 .status(HttpStatus.OK)
                 .body(new ApiResponse<>(userRepository.save(user)));

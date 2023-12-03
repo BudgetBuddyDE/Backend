@@ -30,6 +30,9 @@ public class PaymentMethod {
     @Column(name = "address", length = 100, nullable = false)
     private String address;
 
+    @Column(name = "provider", length = 100, nullable = false)
+    private String provider;
+
     @Column(name = "description")
     private String description;
 
@@ -39,10 +42,11 @@ public class PaymentMethod {
 
     public PaymentMethod() {}
 
-    public PaymentMethod(User user, String name, String address, String description) {
+    public PaymentMethod(User user, String name, String address, String provider, String description) {
         this.owner = user;
         this.name = name;
         this.address = address;
+        this.provider = provider;
         this.description = description;
         this.createdAt = new Date();
     }
@@ -52,6 +56,7 @@ public class PaymentMethod {
         public UUID owner;
         public String name;
         public String address;
+        public String provider;
         public String description;
     }
 
@@ -60,6 +65,7 @@ public class PaymentMethod {
         public Long id;
         public String name;
         public String address;
+        public String provider;
         public String description;
     }
 

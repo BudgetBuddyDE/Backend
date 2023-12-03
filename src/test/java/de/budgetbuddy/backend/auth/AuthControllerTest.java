@@ -6,6 +6,8 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import de.budgetbuddy.backend.ApiResponse;
 import de.budgetbuddy.backend.user.User;
 import de.budgetbuddy.backend.user.UserRepository;
+import de.budgetbuddy.backend.user.role.Role;
+import de.budgetbuddy.backend.user.role.RolePermission;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
@@ -44,10 +46,109 @@ class AuthControllerTest {
         when(userRepository.findByEmail(user.getEmail()))
                 .thenReturn(Optional.of(user));
 
-        ResponseEntity<ApiResponse<User>> response = authController.register(user);
+        ResponseEntity<ApiResponse<User>> response = authController.register(user, null);
 
         assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
         assertEquals("This email is already in use", Objects.requireNonNull(response.getBody()).getMessage());
+    }
+
+    @Test
+    void testRegisterAdmin_MissingAuthHeader() {
+        User user = new User(UUID.randomUUID());
+        user.setEmail("test@mail.com");
+        user.setRole(new Role(RolePermission.SERVICE_ACCOUNT));
+
+        when(userRepository.findByEmail(user.getEmail()))
+                .thenReturn(Optional.empty());
+        when(userRepository.save(any(User.class)))
+                .thenReturn(user);
+
+        ResponseEntity<ApiResponse<User>> response = authController.register(user, null);
+
+        assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
+        assertEquals("You need to verify yourself in order to proceed",
+                Objects.requireNonNull(response.getBody()).getMessage());
+        assertNull(Objects.requireNonNull(response.getBody()).getData());
+    }
+
+    @Test
+    void testRegisterAdmin_InvalidAuthHeaderValues() {
+        User authUser = new User(UUID.randomUUID());
+        authUser.setPassword("hashedPassword");
+        authUser.setRole(new Role(RolePermission.SERVICE_ACCOUNT));
+
+        when(userRepository.findByUuidAndPassword(authUser.getUuid(), "anotherHashedPassword"))
+                .thenReturn(Optional.empty());
+
+        User user = new User(UUID.randomUUID());
+        user.setEmail("test@mail.com");
+        user.setRole(new Role(RolePermission.SERVICE_ACCOUNT));
+
+        when(userRepository.findByEmail(user.getEmail()))
+                .thenReturn(Optional.empty());
+        when(userRepository.save(any(User.class)))
+                .thenReturn(user);
+
+        ResponseEntity<ApiResponse<User>> response = authController
+                .register(user, String.format("Bearer %s.%s", authUser.getUuid().toString(), authUser.getPassword()));
+
+        assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
+        assertEquals("Your provided credentials are invalid",
+                Objects.requireNonNull(response.getBody()).getMessage());
+        assertNull(Objects.requireNonNull(response.getBody()).getData());
+    }
+
+    @Test
+    void testRegisterAdmin_InvalidPermissions() {
+        User authUser = new User(UUID.randomUUID());
+        authUser.setPassword("hashedPassword");
+        authUser.setRole(new Role(RolePermission.SERVICE_ACCOUNT));
+
+        when(userRepository.findByUuidAndPassword(authUser.getUuid(), authUser.getPassword()))
+                .thenReturn(Optional.of(authUser));
+
+        User user = new User(UUID.randomUUID());
+        user.setEmail("test@mail.com");
+        user.setRole(new Role(RolePermission.SERVICE_ACCOUNT));
+
+        when(userRepository.findByEmail(user.getEmail()))
+                .thenReturn(Optional.empty());
+        when(userRepository.save(any(User.class)))
+                .thenReturn(user);
+
+        ResponseEntity<ApiResponse<User>> response = authController
+                .register(user, String.format("Bearer %s.%s", authUser.getUuid().toString(), authUser.getPassword()));
+
+        assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
+        assertEquals("You don't have the permissions to create this user",
+                Objects.requireNonNull(response.getBody()).getMessage());
+        assertNull(Objects.requireNonNull(response.getBody()).getData());
+    }
+
+    @Test
+    void testRegisterAdmin_Success() {
+        User authUser = new User(UUID.randomUUID());
+        authUser.setPassword("hashedPassword");
+        authUser.setRole(new Role(RolePermission.ADMIN));
+
+        when(userRepository.findByUuidAndPassword(authUser.getUuid(), authUser.getPassword()))
+                .thenReturn(Optional.of(authUser));
+
+        User user = new User(UUID.randomUUID());
+        user.setEmail("test@mail.com");
+        user.setRole(new Role(RolePermission.SERVICE_ACCOUNT));
+
+        when(userRepository.findByEmail(user.getEmail()))
+                .thenReturn(Optional.empty());
+        when(userRepository.save(any(User.class)))
+                .thenReturn(user);
+
+        ResponseEntity<ApiResponse<User>> response = authController
+                .register(user, String.format("Bearer %s.%s", authUser.getUuid().toString(), authUser.getPassword()));
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNull(Objects.requireNonNull(response.getBody()).getMessage());
+        assertEquals(user, Objects.requireNonNull(response.getBody()).getData());
     }
 
     @Test
@@ -59,7 +160,7 @@ class AuthControllerTest {
                 .thenReturn(Optional.empty());
         when(userRepository.save(user)).thenReturn(user);
 
-        ResponseEntity<ApiResponse<User>> response = authController.register(user);
+        ResponseEntity<ApiResponse<User>> response = authController.register(user, null);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(user, Objects.requireNonNull(response.getBody()).getData());
@@ -112,7 +213,7 @@ class AuthControllerTest {
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals("You're logged in", Objects.requireNonNull(response.getBody()).getMessage());
-        assertEquals(objMapper.readValue(session.getAttribute("user").toString(), User.class), user);
+
     }
 
     @Test

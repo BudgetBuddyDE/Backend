@@ -9,11 +9,13 @@ import de.budgetbuddy.backend.paymentMethod.PaymentMethod;
 import de.budgetbuddy.backend.paymentMethod.PaymentMethodRepository;
 import de.budgetbuddy.backend.user.User;
 import de.budgetbuddy.backend.user.UserRepository;
+import de.budgetbuddy.backend.user.role.RolePermission;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -27,7 +29,11 @@ public class SubscriptionController {
     private final PaymentMethodRepository paymentMethodRepository;
     private final SubscriptionRepository subscriptionRepository;
 
-    public SubscriptionController(UserRepository userRepository, CategoryRepository categoryRepository, PaymentMethodRepository paymentMethodRepository, SubscriptionRepository subscriptionRepository) {
+    public SubscriptionController(
+            UserRepository userRepository,
+            CategoryRepository categoryRepository,
+            PaymentMethodRepository paymentMethodRepository,
+            SubscriptionRepository subscriptionRepository) {
         this.userRepository = userRepository;
         this.categoryRepository = categoryRepository;
         this.paymentMethodRepository = paymentMethodRepository;
@@ -35,8 +41,10 @@ public class SubscriptionController {
     }
 
     @PostMapping
-    public ResponseEntity<ApiResponse<Subscription>> createSubscription(@RequestBody Subscription.Create payload, HttpSession session) throws JsonProcessingException {
-        if (payload.getExecuteAt() < 1 || payload.getExecuteAt() > 31) {
+    public ResponseEntity<ApiResponse<Subscription>> createSubscription(
+            @RequestBody Subscription.Create payload,
+            HttpSession session) throws JsonProcessingException {
+        if (!Subscription.isValidExecutionDate(payload.getExecuteAt())) {
             return ResponseEntity
                     .status(HttpStatus.CONFLICT)
                     .body(new ApiResponse<>(HttpStatus.CONFLICT.value(), "Execution must lay between the first and 31nd of the month"));
@@ -54,10 +62,15 @@ public class SubscriptionController {
         Optional<User> optSessionUser = AuthorizationInterceptor.getSessionUser(session);
         if (optSessionUser.isEmpty()) {
             return AuthorizationInterceptor.noValidSessionResponse();
-        } else if (!optSessionUser.get().getUuid().equals(subscriptionOwner.getUuid())) {
-            return ResponseEntity
-                    .status(HttpStatus.CONFLICT)
-                    .body(new ApiResponse<>(HttpStatus.CONFLICT.value(), "Your subscription owner has to be your session-user"));
+        } else {
+            User sessionUser = optSessionUser.get();
+            if (!sessionUser.getUuid().equals(subscriptionOwner.getUuid())
+                    && !sessionUser.getRole().isGreaterOrEqualThan(RolePermission.SERVICE_ACCOUNT)) {
+                return ResponseEntity
+                        .status(HttpStatus.CONFLICT)
+                        .body(new ApiResponse<>(HttpStatus.CONFLICT.value(), "You don't have the permissions to create subscriptions for a different user"));
+
+            }
         }
 
         Optional<Category> optCategory = categoryRepository.findByIdAndOwner(payload.getCategoryId(), subscriptionOwner);
@@ -91,7 +104,9 @@ public class SubscriptionController {
     }
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<Subscription>>> getSubscriptionsByUuid(@RequestParam UUID uuid, HttpSession session) throws JsonProcessingException {
+    public ResponseEntity<ApiResponse<List<Subscription>>> getSubscriptionsByUuid(
+            @RequestParam UUID uuid,
+            HttpSession session) throws JsonProcessingException {
         Optional<User> user = userRepository.findById(uuid);
         if (user.isEmpty()) {
             return ResponseEntity
@@ -102,10 +117,15 @@ public class SubscriptionController {
         Optional<User> optSessionUser = AuthorizationInterceptor.getSessionUser(session);
         if (optSessionUser.isEmpty()) {
             return AuthorizationInterceptor.noValidSessionResponse();
-        } else if (!optSessionUser.get().getUuid().equals(uuid)) {
-            return ResponseEntity
-                    .status(HttpStatus.CONFLICT)
-                    .body(new ApiResponse<>(HttpStatus.CONFLICT.value(), "You can't retrieve subscriptions of different users", new ArrayList<>()));
+        } else {
+            User sessionUser = optSessionUser.get();
+            if (!sessionUser.getUuid().equals(uuid)
+                    && !sessionUser.getRole().isGreaterOrEqualThan(RolePermission.SERVICE_ACCOUNT)) {
+                return ResponseEntity
+                        .status(HttpStatus.CONFLICT)
+                        .body(new ApiResponse<>(HttpStatus.CONFLICT.value(), "You don't have the permissions to retrieve subscriptions from a different user"));
+
+            }
         }
 
         List<Subscription> subscriptions = subscriptionRepository.findAllByOwner(user.get());
@@ -114,9 +134,36 @@ public class SubscriptionController {
                 .body(new ApiResponse<>(subscriptions));
     }
 
+    @GetMapping("/all")
+    public ResponseEntity<ApiResponse<List<Subscription>>> getSubscriptions(
+            @RequestParam(name = "execute_at") int executeAt,
+            @RequestParam(name = "paused") Boolean paused,
+            HttpSession session
+    ) throws JsonProcessingException {
+        Optional<User> optSessionUser = AuthorizationInterceptor.getSessionUser(session);
+        if (optSessionUser.isEmpty()) {
+            return AuthorizationInterceptor.noValidSessionResponse();
+        } else if (!optSessionUser.get().getRole().isGreaterOrEqualThan(RolePermission.SERVICE_ACCOUNT)) {
+            return ResponseEntity
+                    .status(HttpStatus.CONFLICT)
+                    .body(new ApiResponse<>(HttpStatus.CONFLICT.value(), "You don't have the permissions to retrieve subscriptions"));
+        }
+
+        if (!Subscription.isValidExecutionDate(executeAt)) {
+            return ResponseEntity
+                    .status(HttpStatus.CONFLICT)
+                    .body(new ApiResponse<>(HttpStatus.CONFLICT.value(), "Execution must lay between the first and 31nd of the month"));
+        }
+
+        return ResponseEntity
+                .status(HttpStatus.OK)
+                .body(new ApiResponse<>(subscriptionRepository
+                        .findAllByExecuteAtAndPaused(executeAt, paused)));
+    }
+
     @PutMapping
     public ResponseEntity<ApiResponse<Subscription>> updateSubscription(@RequestBody Subscription.Update payload, HttpSession session) throws JsonProcessingException {
-        if (payload.getExecuteAt() < 1 || payload.getExecuteAt() > 31) {
+        if (!Subscription.isValidExecutionDate(payload.getExecuteAt())) {
             return ResponseEntity
                     .status(HttpStatus.CONFLICT)
                     .body(new ApiResponse<>(HttpStatus.CONFLICT.value(), "Execution must lay between the first and 31nd of the month"));
@@ -140,14 +187,16 @@ public class SubscriptionController {
                     .body(new ApiResponse<>(HttpStatus.CONFLICT.value(), "You don't own this subscription"));
         }
 
-        Optional<Category> optCategory = categoryRepository.findByIdAndOwner(payload.getCategoryId(), subscriptionOwner);
+        Optional<Category> optCategory = categoryRepository
+                .findByIdAndOwner(payload.getCategoryId(), subscriptionOwner);
         if (optCategory.isEmpty()) {
             return ResponseEntity
                     .status(HttpStatus.NOT_FOUND)
                     .body(new ApiResponse<>(HttpStatus.NOT_FOUND.value(), "Provided category not found"));
         }
 
-        Optional<PaymentMethod> optPaymentMethod = paymentMethodRepository.findByIdAndOwner(payload.getPaymentMethodId(), subscriptionOwner);
+        Optional<PaymentMethod> optPaymentMethod = paymentMethodRepository
+                .findByIdAndOwner(payload.getPaymentMethodId(), subscriptionOwner);
         if (optPaymentMethod.isEmpty()) {
             return ResponseEntity
                     .status(HttpStatus.NOT_FOUND)

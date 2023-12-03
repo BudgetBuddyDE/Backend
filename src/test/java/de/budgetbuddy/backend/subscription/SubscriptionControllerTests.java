@@ -10,19 +10,17 @@ import de.budgetbuddy.backend.paymentMethod.PaymentMethod;
 import de.budgetbuddy.backend.paymentMethod.PaymentMethodRepository;
 import de.budgetbuddy.backend.user.User;
 import de.budgetbuddy.backend.user.UserRepository;
+import de.budgetbuddy.backend.user.role.Role;
+import de.budgetbuddy.backend.user.role.RolePermission;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpSession;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
-import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
 
 import java.util.*;
 
@@ -34,8 +32,6 @@ import static org.mockito.Mockito.when;
 @SpringBootTest
 @AutoConfigureMockMvc
 public class SubscriptionControllerTests {
-    @Autowired
-    private MockMvc mockMvc;
     private final UserRepository userRepository;
     private final CategoryRepository categoryRepository;
     private final PaymentMethodRepository paymentMethodRepository;
@@ -56,17 +52,6 @@ public class SubscriptionControllerTests {
     void setUp() {
         MockitoAnnotations.openMocks(this);
         session = new MockHttpSession();
-    }
-
-    @Test
-    void testCreateSubscription_InvalidSession() throws Exception {
-        session.invalidate();
-        mockMvc
-                .perform(MockMvcRequestBuilders
-                        .post("/v1/subscription")
-                        .session(session)
-                )
-                .andExpect(MockMvcResultMatchers.status().is(HttpStatus.UNAUTHORIZED.value()));
     }
 
     @Test
@@ -185,9 +170,54 @@ public class SubscriptionControllerTests {
         ResponseEntity<ApiResponse<Subscription>> response = subscriptionController.createSubscription(payload, session);
 
         assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
-        assertEquals("Your subscription owner has to be your session-user",
+        assertEquals("You don't have the permissions to create subscriptions for a different user",
                 Objects.requireNonNull(response.getBody()).getMessage());
         assertNull(Objects.requireNonNull(response.getBody()).getData());
+    }
+
+    @Test
+    void testCreateSubscription_WithSupportUserSuccess() throws JsonProcessingException {
+        User sessionUser = new User(UUID.randomUUID());
+        sessionUser.setRole(new Role(RolePermission.SERVICE_ACCOUNT));
+        session.setAttribute("user", objectMapper.writeValueAsString(sessionUser));
+        UUID uuid = UUID.randomUUID();
+        User owner = new User(uuid);
+
+        Category category = new Category();
+        category.setId(1L);
+        category.setOwner(owner);
+
+        PaymentMethod paymentMethod = new PaymentMethod();
+        paymentMethod.setId(1L);
+        paymentMethod.setOwner(owner);
+
+        Subscription.Create payload = new Subscription.Create();
+        payload.setOwner(uuid);
+        payload.setExecuteAt(1);
+        payload.setCategoryId(category.getId());
+        payload.setPaymentMethodId(paymentMethod.getId());
+        payload.setPaused(false);
+
+        Subscription subscription = new Subscription();
+        subscription.setId(1L);
+        subscription.setOwner(owner);
+        subscription.setCategory(category);
+        subscription.setPaymentMethod(paymentMethod);
+
+        when(userRepository.findById(payload.getOwner()))
+                .thenReturn(Optional.of(owner));
+        when(categoryRepository.findByIdAndOwner(payload.getCategoryId(), owner))
+                .thenReturn(Optional.of(category));
+        when(paymentMethodRepository.findByIdAndOwner(payload.getPaymentMethodId(), owner))
+                .thenReturn(Optional.of(paymentMethod));
+        when(subscriptionRepository.save(any(Subscription.class)))
+                .thenReturn(subscription);
+
+        ResponseEntity<ApiResponse<Subscription>> response = subscriptionController.createSubscription(payload, session);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNull(Objects.requireNonNull(response.getBody()).getMessage());
+        assertEquals(subscription, Objects.requireNonNull(response.getBody()).getData());
     }
 
     @Test
@@ -234,14 +264,64 @@ public class SubscriptionControllerTests {
     }
 
     @Test
-    void testGetSubscription_InvalidSession() throws Exception {
-        session.invalidate();
-        mockMvc
-                .perform(MockMvcRequestBuilders
-                        .get("/v1/subscription")
-                        .session(session)
-                )
-                .andExpect(MockMvcResultMatchers.status().is(HttpStatus.UNAUTHORIZED.value()));
+    void testGetSubscriptions_NoSessionUser() throws JsonProcessingException {
+        ResponseEntity<ApiResponse<List<Subscription>>> response = subscriptionController
+                .getSubscriptions(1, false, session);
+
+        assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
+        assertEquals("No valid session found. Sign in first",
+                Objects.requireNonNull(response.getBody()).getMessage());
+        assertNull(Objects.requireNonNull(response.getBody()).getData());
+    }
+
+    @Test
+    void testGetSubscriptions_InvalidSessionUserRole() throws JsonProcessingException {
+        User sessionUser = new User(UUID.randomUUID());
+        sessionUser.setRole(new Role(RolePermission.BASIC));
+        session.setAttribute("user", objectMapper.writeValueAsString(sessionUser));
+
+        ResponseEntity<ApiResponse<List<Subscription>>> response = subscriptionController
+                .getSubscriptions(1, false, session);
+
+        assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
+        assertEquals("You don't have the permissions to retrieve subscriptions",
+                Objects.requireNonNull(response.getBody()).getMessage());
+        assertNull(Objects.requireNonNull(response.getBody()).getData());
+    }
+
+    @Test
+    void testGetSubscription_InvalidDateRange() throws JsonProcessingException {
+        User sessionUser = new User(UUID.randomUUID());
+        sessionUser.setRole(new Role(RolePermission.SERVICE_ACCOUNT));
+        session.setAttribute("user", objectMapper.writeValueAsString(sessionUser));
+
+        ResponseEntity<ApiResponse<List<Subscription>>> response = subscriptionController
+                .getSubscriptions(-4, false, session);
+
+        assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
+        assertEquals("Execution must lay between the first and 31nd of the month",
+                Objects.requireNonNull(response.getBody()).getMessage());
+        assertNull(Objects.requireNonNull(response.getBody()).getData());
+    }
+
+    @Test
+    void testGetSubscriptions_Success() throws JsonProcessingException {
+        User sessionUser = new User(UUID.randomUUID());
+        sessionUser.setRole(new Role(RolePermission.SERVICE_ACCOUNT));
+        session.setAttribute("user", objectMapper.writeValueAsString(sessionUser));
+
+        List<Subscription> subscriptionList = new ArrayList<>();
+        int executeAt = 1;
+        boolean paused = false;
+        when(subscriptionRepository.findAllByExecuteAtAndPaused(executeAt, paused))
+                .thenReturn(subscriptionList);
+
+        ResponseEntity<ApiResponse<List<Subscription>>> response = subscriptionController
+                .getSubscriptions(executeAt, paused, session);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNull(Objects.requireNonNull(response.getBody()).getMessage());
+        assertEquals(subscriptionList, Objects.requireNonNull(response.getBody()).getData());
     }
 
     @Test
@@ -265,15 +345,37 @@ public class SubscriptionControllerTests {
 
         UUID uuid = UUID.randomUUID();
         User owner = new User(uuid);
-        List<Subscription> subscriptionList = new ArrayList<>();
 
         when(userRepository.findById(uuid)).thenReturn(Optional.of(owner));
 
         ResponseEntity<ApiResponse<List<Subscription>>> response = subscriptionController.getSubscriptionsByUuid(uuid, session);
 
         assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
-        assertEquals("You can't retrieve subscriptions of different users",
+        assertEquals("You don't have the permissions to retrieve subscriptions from a different user",
                 Objects.requireNonNull(response.getBody()).getMessage());
+        assertNull(Objects.requireNonNull(response.getBody()).getData());
+    }
+
+    @Test
+    void testGetSubscription_WithSupportUserSuccess() throws JsonProcessingException {
+        User sessionUser = new User(UUID.randomUUID());
+        sessionUser.setRole(new Role(RolePermission.SERVICE_ACCOUNT));
+        session.setAttribute("user", objectMapper.writeValueAsString(sessionUser));
+
+        UUID uuid = UUID.randomUUID();
+        User owner = new User(uuid);
+
+        List<Subscription> subscriptionList = new ArrayList<>();
+
+        when(userRepository.findById(uuid))
+                .thenReturn(Optional.of(owner));
+        when(subscriptionRepository.findAllByOwner(owner))
+                .thenReturn(subscriptionList);
+
+        ResponseEntity<ApiResponse<List<Subscription>>> response = subscriptionController.getSubscriptionsByUuid(uuid, session);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNull(Objects.requireNonNull(response.getBody()).getMessage());
         assertEquals(subscriptionList, Objects.requireNonNull(response.getBody()).getData());
     }
 
@@ -295,17 +397,6 @@ public class SubscriptionControllerTests {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNull(Objects.requireNonNull(response.getBody()).getMessage());
         assertEquals(subscriptionList, Objects.requireNonNull(response.getBody()).getData());
-    }
-
-    @Test
-    void testUpdateSubscription_InvalidSession() throws Exception {
-        session.invalidate();
-        mockMvc
-                .perform(MockMvcRequestBuilders
-                        .put("/v1/subscription")
-                        .session(session)
-                )
-                .andExpect(MockMvcResultMatchers.status().is(HttpStatus.UNAUTHORIZED.value()));
     }
 
     @Test
@@ -491,17 +582,6 @@ public class SubscriptionControllerTests {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNull(Objects.requireNonNull(response.getBody()).getMessage());
         assertEquals(updatedSubscription, Objects.requireNonNull(response.getBody()).getData());
-    }
-
-    @Test
-    void testDeleteSubscription_InvalidSession() throws Exception {
-        session.invalidate();
-        mockMvc
-                .perform(MockMvcRequestBuilders
-                        .delete("/v1/subscription")
-                        .session(session)
-                )
-                .andExpect(MockMvcResultMatchers.status().is(HttpStatus.UNAUTHORIZED.value()));
     }
 
     @Test

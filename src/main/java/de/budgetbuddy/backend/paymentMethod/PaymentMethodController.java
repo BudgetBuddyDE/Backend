@@ -52,7 +52,7 @@ public class PaymentMethodController {
                     .body(new ApiResponse<>(HttpStatus.CONFLICT.value(), "You can't create payment-methods for other users"));
         }
 
-        PaymentMethod paymentMethod = new PaymentMethod(user.get(), payload.getName(), payload.getAddress(), payload.getDescription());
+        PaymentMethod paymentMethod = new PaymentMethod(user.get(), payload.getName(), payload.getAddress(), payload.getProvider(), payload.getDescription());
         return ResponseEntity
                 .status(HttpStatus.OK)
                 .body(new ApiResponse<>(paymentMethodRepository.save(paymentMethod)));
@@ -83,9 +83,10 @@ public class PaymentMethodController {
         }
 
         PaymentMethod paymentMethod = requestedPaymentMethod.get();
-        if (paymentMethodRepository
-                .findByOwnerAndNameAndAddress(requestedPaymentMethod.get().getOwner(), payload.getName(), payload.getAddress())
-                .isPresent()) {
+        Optional<PaymentMethod> existingPaymentMethod = paymentMethodRepository
+                .findByOwnerAndNameAndAddress(requestedPaymentMethod.get().getOwner(), payload.getName(), payload.getAddress());
+        if (existingPaymentMethod.isPresent()
+                && !existingPaymentMethod.get().getId().equals(payload.getId())) {
             return ResponseEntity
                     .status(HttpStatus.CONFLICT)
                     .body(new ApiResponse<>(HttpStatus.CONFLICT.value(), "There is already an payment-method by this name and address"));
@@ -100,7 +101,7 @@ public class PaymentMethodController {
                     .body(new ApiResponse<>(HttpStatus.CONFLICT.value(), "You can't modify payment-methods from other users"));
         }
 
-        PaymentMethod updatedPaymentMethod = new PaymentMethod(paymentMethod.getId(), paymentMethod.getOwner(), payload.getName(), payload.getAddress(), payload.getDescription(), paymentMethod.getCreatedAt());
+        PaymentMethod updatedPaymentMethod = new PaymentMethod(paymentMethod.getId(), paymentMethod.getOwner(), payload.getName(), payload.getAddress(), payload.getProvider(), payload.getDescription(), paymentMethod.getCreatedAt());
         return ResponseEntity
                 .status(HttpStatus.OK)
                 .body(new ApiResponse<>(paymentMethodRepository.save(updatedPaymentMethod)));

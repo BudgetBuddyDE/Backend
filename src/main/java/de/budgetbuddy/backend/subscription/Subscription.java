@@ -70,6 +70,10 @@ public class Subscription {
         this.createdAt = new Date();
     }
 
+    public static boolean isValidExecutionDate(int executeAt) {
+        return executeAt >= 1 && executeAt <=31;
+    }
+
     @Data
     public static class Create {
         private UUID owner;

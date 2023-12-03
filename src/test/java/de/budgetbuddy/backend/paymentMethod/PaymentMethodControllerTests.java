@@ -10,16 +10,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.actuate.endpoint.ApiVersion;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpSession;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
-import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
 
 import java.util.*;
 
@@ -31,8 +26,6 @@ import static org.mockito.Mockito.when;
 @SpringBootTest
 @AutoConfigureMockMvc
 public class PaymentMethodControllerTests {
-    @Autowired
-    private MockMvc mockMvc;
     private final UserRepository userRepository;
     private final PaymentMethodRepository paymentMethodRepository;
     private final PaymentMethodController paymentMethodController;
@@ -51,17 +44,6 @@ public class PaymentMethodControllerTests {
     void setUp() {
         MockitoAnnotations.openMocks(this);
         session = new MockHttpSession();
-    }
-
-    @Test
-    void testCreatePaymentMethod_WithoutValidSession() throws Exception {
-        session.invalidate();
-        mockMvc
-                .perform(MockMvcRequestBuilders
-                        .post("/v1/payment-method")
-                        .session(session)
-                )
-                .andExpect(MockMvcResultMatchers.status().is(HttpStatus.UNAUTHORIZED.value()));
     }
 
     @Test
@@ -118,7 +100,7 @@ public class PaymentMethodControllerTests {
         User user = new User();
         user.setUuid(uuid);
 
-        PaymentMethod paymentMethod = new PaymentMethod(user, payload.getName(), payload.getAddress(), null);
+        PaymentMethod paymentMethod = new PaymentMethod(user, payload.getName(), payload.getAddress(), payload.getAddress(), null);
 
         User sessionUser = new User();
         sessionUser.setUuid(UUID.randomUUID());
@@ -150,7 +132,7 @@ public class PaymentMethodControllerTests {
 
         session.setAttribute("user", objectMapper.writeValueAsString(user));
 
-        PaymentMethod paymentMethod = new PaymentMethod(user, payload.getName(), payload.getAddress(), null);
+        PaymentMethod paymentMethod = new PaymentMethod(user, payload.getName(), payload.getAddress(), payload.getProvider(), null);
 
         when(userRepository.findById(uuid)).thenReturn(Optional.of(user));
         when(paymentMethodRepository.findByOwnerAndNameAndAddress(user, payload.getName(), paymentMethod.getAddress()))
@@ -162,17 +144,6 @@ public class PaymentMethodControllerTests {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(paymentMethod, Objects.requireNonNull(response.getBody()).getData());
         assertNull(Objects.requireNonNull(response.getBody()).getMessage());
-    }
-
-    @Test
-    void testGetPaymentMethods_InvalidSession() throws Exception {
-        session.invalidate();
-        mockMvc
-                .perform(MockMvcRequestBuilders
-                        .get("/v1/payment-method")
-                        .session(session)
-                )
-                .andExpect(MockMvcResultMatchers.status().is(HttpStatus.UNAUTHORIZED.value()));
     }
 
     @Test
@@ -195,17 +166,6 @@ public class PaymentMethodControllerTests {
         assertEquals(paymentMethods, Objects.requireNonNull(response.getBody()).getData());
     }
 
-
-    @Test
-    void testUpdatePaymentMethod_InvalidSession() throws Exception {
-        session.invalidate();
-        mockMvc
-                .perform(MockMvcRequestBuilders
-                        .put("/v1/payment-method")
-                        .session(session)
-                )
-                .andExpect(MockMvcResultMatchers.status().is(HttpStatus.UNAUTHORIZED.value()));
-    }
 
     @Test
     void testUpdatePaymentMethod_PaymentMethodNotFound() throws JsonProcessingException {

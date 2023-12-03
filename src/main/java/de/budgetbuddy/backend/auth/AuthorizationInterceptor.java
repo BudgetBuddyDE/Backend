@@ -3,8 +3,11 @@ package de.budgetbuddy.backend.auth;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import de.budgetbuddy.backend.ApiResponse;
+import de.budgetbuddy.backend.config.RequestLoggingInterceptor;
 import de.budgetbuddy.backend.user.User;
 import de.budgetbuddy.backend.user.UserRepository;
+import lombok.AllArgsConstructor;
+import lombok.Data;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.AntPathMatcher;
@@ -20,6 +23,7 @@ import io.micrometer.common.lang.Nullable;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpServletRequest;
 
+import java.io.IOException;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -32,8 +36,17 @@ public class AuthorizationInterceptor implements HandlerInterceptor {
         this.userRepository = userRepository;
     }
 
+    /**
+     * Important
+     * The Authorization header should be structured as follows.
+     * `Bearer: UUID.HASHED_PASSWORD`
+     * The values are separated and then verified in the `AuthorizationInterceptor`. The current user for the session is then determined based on the UUID and set as the "user" session attribute.
+     */
     @Override
-    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
+    public boolean preHandle(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            Object handler) throws Exception {
         PathMatcher pathMatcher = new AntPathMatcher();
         String path = request.getRequestURI();
         if (pathMatcher.match("/v1/auth/**", path)) {
@@ -42,22 +55,22 @@ public class AuthorizationInterceptor implements HandlerInterceptor {
 
         try {
             String authHeader = request.getHeader("Authorization");
+
             if (authHeader == null || !authHeader.startsWith("Bearer")) {
-                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                response.setContentType("application/json");
-                ApiResponse<?> apiResponse = new ApiResponse<>(HttpServletResponse.SC_UNAUTHORIZED, "No Bearer-Token we're provided");
-                response.getWriter().write(new ObjectMapper().writeValueAsString(apiResponse));
+                handleUnauthorizedResponse(request, response, "No Bearer-Token was provided");
                 return false;
             }
 
-            String bearerValue = authHeader.substring("Bearer".length() + 1);
-            UUID uuid = UUID.fromString(bearerValue);
-            Optional<User> optAuthHeaderUser = userRepository.findById(uuid);
+            AuthValues authValues = AuthorizationInterceptor.retrieveTokenValue(authHeader);
+            if (authValues.getUuid() == null || authValues.getHashedPassword() == null) {
+                handleUnauthorizedResponse(request, response, "Invalid Bearer-Token format");
+                return false;
+            }
+
+            Optional<User> optAuthHeaderUser = userRepository
+                    .findByUuidAndPassword(authValues.getUuid(), authValues.getHashedPassword());
             if (optAuthHeaderUser.isEmpty()) {
-                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                response.setContentType("application/json");
-                ApiResponse<?> apiResponse = new ApiResponse<>(HttpServletResponse.SC_UNAUTHORIZED, "Provided Bearer-Token is invalid");
-                response.getWriter().write(new ObjectMapper().writeValueAsString(apiResponse));
+                handleUnauthorizedResponse(request, response, "Provided Bearer-Token is invalid");
                 return false;
             }
 
@@ -66,12 +79,52 @@ public class AuthorizationInterceptor implements HandlerInterceptor {
             session.setAttribute("user", objMapper.writeValueAsString(authHeaderUser));
             return true;
         } catch (IllegalArgumentException | JsonProcessingException ex) {
-            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-            response.setContentType("application/json");
-            ApiResponse<String> apiResponse = new ApiResponse<String>(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "internal-server-error", ex.getMessage());
-            response.getWriter().write(new ObjectMapper().writeValueAsString(apiResponse));
+            handleErrorResponse(request, response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "internal-server-error", ex.getMessage());
             return false;
         }
+    }
+
+    public static AuthValues retrieveTokenValue(String authorizationHeader) {
+        String bearerTokenValue = authorizationHeader.substring("Bearer".length() + 1);
+        int indexOfFirstDot = bearerTokenValue.indexOf(".");
+        if (indexOfFirstDot == -1) return new AuthValues();
+
+        UUID uuid = UUID.fromString(bearerTokenValue.substring(0, indexOfFirstDot));
+        String hashedPassword = bearerTokenValue.substring(indexOfFirstDot + 1);
+        return new AuthValues(uuid, hashedPassword);
+    }
+
+    @Data
+    @AllArgsConstructor
+    public static class AuthValues {
+        private UUID uuid;
+        private String hashedPassword;
+
+        public AuthValues() {}
+    }
+
+    private void handleUnauthorizedResponse(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            String errorMessage) throws IOException {
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.setContentType("application/json");
+        ApiResponse<?> apiResponse = new ApiResponse<>(HttpServletResponse.SC_UNAUTHORIZED, errorMessage);
+        response.getWriter().write(new ObjectMapper().writeValueAsString(apiResponse));
+        RequestLoggingInterceptor.logRequest(request, response);
+    }
+
+    private void handleErrorResponse(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            int statusCode,
+            String errorType,
+            String errorMessage) throws IOException {
+        response.setStatus(statusCode);
+        response.setContentType("application/json");
+        ApiResponse<String> apiResponse = new ApiResponse<>(statusCode, errorType, errorMessage);
+        response.getWriter().write(new ObjectMapper().writeValueAsString(apiResponse));
+        RequestLoggingInterceptor.logRequest(request, response);
     }
 
     public static boolean isValidUserSession(HttpSession session) {
@@ -95,12 +148,20 @@ public class AuthorizationInterceptor implements HandlerInterceptor {
     }
 
     @Override
-    public void postHandle(HttpServletRequest request, HttpServletResponse response, Object handler, @Nullable ModelAndView modelAndView) throws Exception {
+    public void postHandle(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            Object handler,
+            @Nullable ModelAndView modelAndView) throws Exception {
         HandlerInterceptor.super.postHandle(request, response, handler, modelAndView);
     }
 
     @Override
-    public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, @Nullable Exception ex) throws Exception {
+    public void afterCompletion(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            Object handler,
+            @Nullable Exception ex) throws Exception {
         HandlerInterceptor.super.afterCompletion(request, response, handler, ex);
     }
 }

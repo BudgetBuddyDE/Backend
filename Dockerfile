@@ -1,7 +1,7 @@
 # Verwende Gradle als Basisimage für den Builder
 FROM gradle:8.3.0-jdk17 AS builder
 
-LABEL org.opencontainers.image.source https://github.com/BudgetBuddyDE/Backend
+LABEL org.opencontainers.image.source https://github.com/budgetbuddyde/backend
 
   # Setze das Arbeitsverzeichnis innerhalb des Builders
 WORKDIR /app

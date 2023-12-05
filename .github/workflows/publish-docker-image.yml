@@ -36,6 +36,7 @@ jobs:
         run: ./gradlew test
       - name: Upload report
         uses: actions/upload-artifact@v2
+        if: always()
         with:
           name: Test Report
           path: ./build/reports/tests/test/

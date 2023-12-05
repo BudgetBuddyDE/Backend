@@ -123,7 +123,7 @@ public class TransactionController {
             }
         }
 
-        List<Transaction> transactions = transactionRepository.findAllByOwnerOrderByProcessedAtDesc(user.get());
+        List<Transaction> transactions = transactionRepository.findTransactionsByOwnerOrderByProcessedAtDesc(user.get());
         return ResponseEntity
                 .status(HttpStatus.OK)
                 .body(new ApiResponse<>(transactions));

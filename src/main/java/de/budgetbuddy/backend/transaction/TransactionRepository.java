@@ -11,7 +11,7 @@ import java.util.UUID;
 
 public interface TransactionRepository extends JpaRepository<Transaction, Long> {
     List<Transaction> findAllByOwner(User owner);
-    List<Transaction> findAllByOwnerOrderByProcessedAtDesc(User owner);
+    List<Transaction> findTransactionsByOwnerOrderByProcessedAtDesc(User owner);
     @Query(value = "select * from f_get_daily_transactions(:start_date, :end_date, :requested_data, :user_id)", nativeQuery = true)
     List<Object[]> fetchDailyTransactions(
             @Param("start_date") LocalDate startDate,

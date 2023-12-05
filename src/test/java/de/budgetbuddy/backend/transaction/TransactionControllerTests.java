@@ -290,7 +290,7 @@ public class TransactionControllerTests {
 
         when(userRepository.findById(uuid))
                 .thenReturn(Optional.of(owner));
-        when(transactionRepository.findAllByOwner(owner))
+        when(transactionRepository.findTransactionsByOwnerOrderByProcessedAtDesc(owner))
                 .thenReturn(transactionList);
 
         ResponseEntity<ApiResponse<List<Transaction>>> response = transactionController.getTransactionsByUuid(uuid, session);
@@ -310,7 +310,7 @@ public class TransactionControllerTests {
 
         when(userRepository.findById(uuid))
                 .thenReturn(Optional.of(owner));
-        when(transactionRepository.findAllByOwner(owner))
+        when(transactionRepository.findTransactionsByOwnerOrderByProcessedAtDesc(owner))
                 .thenReturn(transactionList);
 
         ResponseEntity<ApiResponse<List<Transaction>>> response = transactionController.getTransactionsByUuid(uuid, session);

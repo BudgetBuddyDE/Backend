@@ -9,6 +9,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.TimeZone;
+
 @RestController
 @SpringBootApplication
 public class BackendApplication {
@@ -18,6 +20,7 @@ public class BackendApplication {
 	}
 
 	public static void main(String[] args) {
+		TimeZone.setDefault(TimeZone.getTimeZone("UTC+1"));
 		SpringApplication.run(BackendApplication.class, args);
 	}
 

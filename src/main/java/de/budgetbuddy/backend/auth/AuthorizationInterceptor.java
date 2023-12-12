@@ -8,6 +8,7 @@ import de.budgetbuddy.backend.user.User;
 import de.budgetbuddy.backend.user.UserRepository;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.AntPathMatcher;
@@ -49,7 +50,8 @@ public class AuthorizationInterceptor implements HandlerInterceptor {
             Object handler) throws Exception {
         PathMatcher pathMatcher = new AntPathMatcher();
         String path = request.getRequestURI();
-        if (pathMatcher.match("/v1/auth/**", path)) {
+        if (pathMatcher.match("/v1/auth/**", path)
+            || request.getMethod().equals(HttpMethod.OPTIONS.toString())) {
             return true;
         }
 

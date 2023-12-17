@@ -9,8 +9,6 @@ import de.budgetbuddy.backend.user.UserRepository;
 import de.budgetbuddy.backend.user.role.Role;
 import de.budgetbuddy.backend.user.role.RolePermission;
 import jakarta.servlet.http.HttpSession;
-import org.apache.coyote.Response;
-import org.hibernate.engine.transaction.internal.jta.JtaStatusHelper;
 import org.mindrot.jbcrypt.BCrypt;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;

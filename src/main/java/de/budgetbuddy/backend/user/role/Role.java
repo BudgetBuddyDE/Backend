@@ -38,18 +38,21 @@ public class Role {
         this.name = name;
         this.description = description;
         this.permissions = permissions.getPermissions();
+        this.createdAt = new Date();
     }
 
     public Role(String name, String description, Integer permissions) {
         this.name = name;
         this.description = description;
         this.permissions = permissions;
+        this.createdAt = new Date();
     }
 
     public Role(RolePermission role) {
         this.id = role.getId();
         this.name = role.name();
         this.permissions = role.getPermissions();
+        this.createdAt = new Date();
     }
 
     public boolean isGreaterOrEqualThan(RolePermission role) {

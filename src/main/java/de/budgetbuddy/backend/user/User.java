@@ -24,6 +24,9 @@ public class User {
     @Column(columnDefinition = "uuid", updatable = false, nullable = false)
     private UUID uuid;
 
+    @Column(name = "is_verified", nullable = false)
+    private Boolean isVerified = false;
+
     @OneToOne
     @JoinColumn(name = "role")
     private Role role;

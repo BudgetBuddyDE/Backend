@@ -153,7 +153,7 @@ class AuthControllerTest {
 
     @Test
     void registerUserNew() {
-        User user = new User();
+        User user = new User(UUID.randomUUID());
         user.setEmail("test@test.com");
 
         when(userRepository.findByEmail(user.getEmail()))

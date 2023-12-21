@@ -30,24 +30,14 @@ public class UserController {
     }
 
     @GetMapping
-    public ResponseEntity<ApiResponse<UserAvatar>> getUser(@RequestParam UUID uuid) {
+    public ResponseEntity<ApiResponse<User>> getUser(@RequestParam UUID uuid) {
         Optional<User> user = userRepository.findById(uuid);
-        if (user.isEmpty()) {
-            return ResponseEntity
-                    .status(HttpStatus.NOT_FOUND)
-                    .body(new ApiResponse<>(404, "Provided user not found"));
-        }
-
-        Optional<UserAvatar> avatar = userAvatarRepository.findByOwner(user.get());
-        if (avatar.isEmpty()) {
-            return ResponseEntity
-                    .status(HttpStatus.NOT_FOUND)
-                    .body(new ApiResponse<>(404, "User doens't have a custom avatar"));
-        }
-
-        return ResponseEntity
+        return user.map(value -> ResponseEntity
                 .status(HttpStatus.OK)
-                .body(new ApiResponse<>(avatar.get()));
+                .body(new ApiResponse<>(value))).orElseGet(() -> ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .body(new ApiResponse<>(404, "Provided user not found")));
+
     }
 
     @PutMapping

@@ -4,30 +4,40 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import de.budgetbuddy.backend.ApiResponse;
+import de.budgetbuddy.backend.WebhookTrigger;
+import de.budgetbuddy.backend.log.Log;
+import de.budgetbuddy.backend.log.LogType;
+import de.budgetbuddy.backend.log.Logger;
 import de.budgetbuddy.backend.user.User;
 import de.budgetbuddy.backend.user.UserRepository;
 import de.budgetbuddy.backend.user.role.Role;
 import de.budgetbuddy.backend.user.role.RolePermission;
 import jakarta.servlet.http.HttpSession;
+import org.json.JSONObject;
 import org.mindrot.jbcrypt.BCrypt;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.env.Environment;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.view.RedirectView;
 
 import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/v1/auth")
 public class AuthController {
     private final ObjectMapper objMapper = new ObjectMapper().registerModule(new JavaTimeModule());
     private final UserRepository userRepository;
+    private final Environment environment;
 
     @Autowired
-    public AuthController(UserRepository userRepository) {
+    public AuthController(UserRepository userRepository, Environment env) {
         this.userRepository = userRepository;
+        this.environment = env;
     }
 
     @PostMapping(value = "/register")
@@ -83,9 +93,25 @@ public class AuthController {
             }
         }
 
+        User savedUser = userRepository.save(user);
+
+        if (!Objects.isNull(environment)) {
+            String mailServiceHost = environment.getProperty("de.budget-buddy.mail-service.address");
+            if (!Objects.isNull(mailServiceHost) && mailServiceHost.length() > 1) {
+                JSONObject payload = new JSONObject();
+                payload.put("to", savedUser.getEmail());
+                payload.put("mail", "welcome");
+                payload.put("uuid", savedUser.getUuid().toString());
+                Boolean wasVerificationMailSent = WebhookTrigger.send(mailServiceHost + "/send", payload.toString());
+                if (!wasVerificationMailSent) {
+                    Logger.getInstance().log(new Log("Backend", LogType.WARNING, "Registration", "Couldn't send email-verification-mail"));
+                }
+            }
+        }
+
         return ResponseEntity
                 .status(HttpStatus.OK)
-                .body(new ApiResponse<>(userRepository.save(user)));
+                .body(new ApiResponse<>(savedUser));
     }
 
     @PostMapping(value = "/login")
@@ -146,6 +172,34 @@ public class AuthController {
                     .body(new ApiResponse<>(HttpStatus.INTERNAL_SERVER_ERROR.value(), "Something went wrong on our side"));
 
         }
+    }
+
+    @GetMapping("/verify")
+    public RedirectView verifyMailAddress(
+            @RequestParam String returnTo,
+            @RequestParam UUID uuid,
+            @RequestParam String mailAddress) {
+        RedirectView redirectView = new RedirectView(returnTo);
+        VerifyMailReturnCode returnCode = VerifyMailReturnCode.SUCCESS;
+        Optional<User> optionalUser = userRepository.findById(uuid);
+        if (optionalUser.isEmpty()) {
+            returnCode = VerifyMailReturnCode.USER_NOT_FOUND;
+        }
+
+        User user = optionalUser.get();
+        if (user.getIsVerified()) {
+            returnCode = VerifyMailReturnCode.ALREADY_VERIFIED;
+        }
+
+        if (!user.getEmail().equals(mailAddress)) {
+            returnCode = VerifyMailReturnCode.INVALID_EMAIL;
+        }
+
+        user.setIsVerified(true);
+        userRepository.save(user);
+        redirectView.addStaticAttribute("code", returnCode);
+
+        return redirectView;
     }
 
     @PostMapping("/logout")

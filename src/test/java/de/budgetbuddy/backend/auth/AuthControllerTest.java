@@ -4,15 +4,15 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import de.budgetbuddy.backend.ApiResponse;
+import de.budgetbuddy.backend.MailService;
 import de.budgetbuddy.backend.user.User;
 import de.budgetbuddy.backend.user.UserRepository;
 import de.budgetbuddy.backend.user.role.Role;
 import de.budgetbuddy.backend.user.role.RolePermission;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.springframework.core.env.Environment;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpSession;
@@ -25,12 +25,18 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class AuthControllerTest {
-    @Mock
-    private UserRepository userRepository;
-    @InjectMocks
-    private AuthController authController;
+    private final UserRepository userRepository;
+    private final AuthController authController;
     private MockHttpSession session;
     private final ObjectMapper objMapper = new ObjectMapper().registerModule(new JavaTimeModule());
+
+    AuthControllerTest() {
+        this.userRepository = mock(UserRepository.class);
+        UserPasswordResetRepository userPasswordResetRepository = mock(UserPasswordResetRepository.class);
+        Environment environment = mock(Environment.class);
+        MailService mailService = new MailService(environment);
+        this.authController = new AuthController(userRepository, userPasswordResetRepository, mailService);
+    }
 
     @BeforeEach
     void setUp() {

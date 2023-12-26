@@ -4,7 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import de.budgetbuddy.backend.ApiResponse;
-import de.budgetbuddy.backend.WebhookTrigger;
+import de.budgetbuddy.backend.MailService;
 import de.budgetbuddy.backend.log.Log;
 import de.budgetbuddy.backend.log.LogType;
 import de.budgetbuddy.backend.log.Logger;
@@ -13,16 +13,17 @@ import de.budgetbuddy.backend.user.UserRepository;
 import de.budgetbuddy.backend.user.role.Role;
 import de.budgetbuddy.backend.user.role.RolePermission;
 import jakarta.servlet.http.HttpSession;
-import org.json.JSONObject;
 import org.mindrot.jbcrypt.BCrypt;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.core.env.Environment;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.view.RedirectView;
 
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -32,12 +33,17 @@ import java.util.UUID;
 public class AuthController {
     private final ObjectMapper objMapper = new ObjectMapper().registerModule(new JavaTimeModule());
     private final UserRepository userRepository;
-    private final Environment environment;
+    private final UserPasswordResetRepository userPasswordResetRepository;
+    private final MailService mailService;
 
     @Autowired
-    public AuthController(UserRepository userRepository, Environment env) {
+    public AuthController(
+            UserRepository userRepository,
+            UserPasswordResetRepository userPasswordResetRepository,
+            MailService mailService) {
         this.userRepository = userRepository;
-        this.environment = env;
+        this.userPasswordResetRepository = userPasswordResetRepository;
+        this.mailService = mailService;
     }
 
     @PostMapping(value = "/register")
@@ -94,19 +100,13 @@ public class AuthController {
         }
 
         User savedUser = userRepository.save(user);
-
-        if (!Objects.isNull(environment)) {
-            String mailServiceHost = environment.getProperty("de.budget-buddy.mail-service.address");
-            if (!Objects.isNull(mailServiceHost) && mailServiceHost.length() > 1) {
-                JSONObject payload = new JSONObject();
-                payload.put("to", savedUser.getEmail());
-                payload.put("mail", "welcome");
-                payload.put("uuid", savedUser.getUuid().toString());
-                Boolean wasVerificationMailSent = WebhookTrigger.send(mailServiceHost + "/send", payload.toString());
-                if (!wasVerificationMailSent) {
-                    Logger.getInstance().log(new Log("Backend", LogType.WARNING, "Registration", "Couldn't send email-verification-mail"));
-                }
+        try {
+            if (!mailService.trigger(MailService.getVerificationMailPayload(savedUser))) {
+                Logger.getInstance()
+                        .log(new Log("Backend", LogType.WARNING, "registration", "Couldn't send the verification email"));
             }
+        } catch (Exception e) {
+            System.out.print(e.getMessage());
         }
 
         return ResponseEntity
@@ -209,4 +209,117 @@ public class AuthController {
                 .status(HttpStatus.OK)
                 .body(new ApiResponse<>(HttpStatus.OK.value(), "Your session has been destroyed"));
     }
+
+    @PostMapping("/password/request-reset")
+    public ResponseEntity<ApiResponse<UserPasswordReset>> requestPasswordReset(
+            @RequestParam String email) {
+        Optional<User> optUser = userRepository.findByEmail(email);
+
+        if (optUser.isEmpty()) {
+            return ResponseEntity
+                    .status(HttpStatus.NOT_FOUND)
+                    .body(new ApiResponse<>(HttpStatus.NOT_FOUND.value(), "No user found for the provided email"));
+        }
+
+        UserPasswordReset passwordReset = userPasswordResetRepository.save(new UserPasswordReset(optUser.get()));
+
+        try {
+            if (!mailService.trigger(MailService.getRequestPasswordMailPayload(
+                    email,
+                    optUser.get().getUuid(),
+                    passwordReset.getOtp()))) {
+                Logger.getInstance()
+                        .log(new Log("Backend", LogType.WARNING, "password-reset", "Couldn't send the request-password-change email"));
+            }
+        } catch (Exception e) {
+            System.out.print(e.getMessage());
+        }
+
+        return ResponseEntity
+                .status(HttpStatus.OK)
+                .body(new ApiResponse<>(passwordReset));
+    }
+
+    @PostMapping("/password/validate-otp")
+    public ResponseEntity<ApiResponse<Boolean>> validatePasswordRequestOtp(
+            @RequestParam UUID otp
+    ) {
+        ApiResponse<Boolean> validationResult = this.isOtpValid(otp);
+        return ResponseEntity
+                .status(validationResult.getStatus())
+                .body(validationResult);
+    }
+
+    @PostMapping("/password/reset")
+    public ResponseEntity<ApiResponse<User>> resetPassword(
+            @RequestParam UUID otp,
+            @RequestParam String newPassword
+    ) {
+        ApiResponse<Boolean> validationResult = this.isOtpValid(otp);
+        if (!validationResult.getData()) {
+            return ResponseEntity
+                    .status(validationResult.getStatus())
+                    .body(new ApiResponse<>(validationResult.getStatus(), validationResult.getMessage()));
+        }
+
+        UserPasswordReset passwordReset = userPasswordResetRepository.findByOtp(otp).get();
+        passwordReset.setUsed(true);
+        userPasswordResetRepository.save(passwordReset);
+
+        User user = passwordReset.getOwner();
+        user.setPassword(newPassword);
+        user.hashPassword();
+        userRepository.save(user);
+
+        try {
+            if (!mailService.trigger(MailService.getPasswordChangedMailPayload(
+                    user.getEmail(),
+                    user.getName(),
+                    user.getEmail()))) {
+                Logger.getInstance()
+                        .log(new Log("Backend", LogType.WARNING, "password-reset", "Couldn't send the password-changed notification email"));
+            }
+        } catch (Exception e) {
+            System.out.print(e.getMessage());
+        }
+
+        return ResponseEntity
+                .status(HttpStatus.OK)
+                .body(new ApiResponse<>(user));
+    }
+
+    public ApiResponse<Boolean> isOtpValid(UUID otp) {
+        Optional<UserPasswordReset> optPasswordRequest = userPasswordResetRepository.findByOtp(otp);
+        if (optPasswordRequest.isEmpty()) {
+            return new ApiResponse<>(
+                    HttpStatus.NOT_FOUND.value(),
+                    "No session found for the provided session",
+                    false);
+        }
+
+        UserPasswordReset passwordReset = optPasswordRequest.get();
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime otpCreatedAt = passwordReset
+                .getCreatedAt()
+                .toInstant()
+                .atZone(ZoneId.systemDefault())
+                .toLocalDateTime();
+
+        if (ChronoUnit.DAYS.between(otpCreatedAt, now) >= 1) {
+            return new ApiResponse<>(
+                            HttpStatus.UNAUTHORIZED.value(),
+                            "This OTP has expired",
+                            false);
+        }
+
+        if (passwordReset.wasUsed()) {
+            return new ApiResponse<>(
+                    HttpStatus.UNAUTHORIZED.value(),
+                    "This OTP has already been used",
+                    false);
+        }
+
+        return new ApiResponse<>(true);
+    }
+
 }

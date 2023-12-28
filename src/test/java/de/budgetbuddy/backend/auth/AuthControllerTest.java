@@ -204,22 +204,25 @@ class AuthControllerTest {
     }
 
     @Test
-    void successfullLogin() throws JsonProcessingException {
+    void successfullLogin() {
         User user = new User();
+        user.setUuid(UUID.randomUUID());
         user.setEmail("test@test.com");
         user.setPassword("test");
         user.hashPassword();
 
-        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        when(userRepository.findByEmail(user.getEmail()))
+                .thenReturn(Optional.of(user));
 
-        User loginUser = new User();
-        loginUser.setEmail("test@test.com");
-        loginUser.setPassword("test");
+        User loginUser = new User(user.getUuid());
+        loginUser.setEmail(user.getEmail());
+        loginUser.setPassword("test"); // enter password in plain text, because otherwise it would be hashed again
+
         ResponseEntity<ApiResponse<User>> response = authController.login(loginUser, session);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals("You're logged in", Objects.requireNonNull(response.getBody()).getMessage());
-
+        assertEquals("You're logged in",
+                Objects.requireNonNull(response.getBody()).getMessage());
     }
 
     @Test
@@ -236,7 +239,8 @@ class AuthControllerTest {
         User sessionUser = new User(UUID.randomUUID());
         session.setAttribute("user", objMapper.writeValueAsString(sessionUser));
 
-        when(userRepository.findById(sessionUser.getUuid())).thenReturn(Optional.of(sessionUser));
+        when(userRepository.findById(sessionUser.getUuid()))
+                .thenReturn(Optional.of(sessionUser));
 
         ResponseEntity<ApiResponse<User>> response = authController.validateSession(session);
 
@@ -255,5 +259,57 @@ class AuthControllerTest {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals("Your session has been destroyed", Objects.requireNonNull(response.getBody()).getMessage());
         assertNull(Objects.requireNonNull(response.getBody()).getData());
+    }
+
+    @Test
+    void testVerifyToken_InvalidFormat() {
+        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
+            ResponseEntity<ApiResponse<Boolean>> response = authController
+                    .validateBearerToken("token");
+        });
+
+        String expectedMessage = "Invalid Authorization header format";
+        String actualMessage = exception.getMessage();
+        assertTrue(actualMessage.contains(expectedMessage));
+    }
+
+    @Test
+    void testVerifyToken_InvalidValue() {
+        UUID uuid = UUID.randomUUID();
+        String password = "password";
+
+        AuthorizationInterceptor.AuthValues authValues = new AuthorizationInterceptor
+                .AuthValues(uuid, password);
+
+        when(userRepository.findByUuidAndPassword(authValues.getUuid(), authValues.getHashedPassword()))
+                .thenReturn(Optional.empty());
+
+        ResponseEntity<ApiResponse<Boolean>> response = authController
+                .validateBearerToken(authValues.getBearerToken());
+
+        assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
+        assertEquals("Provided Bearer-Token is invalid",
+                Objects.requireNonNull(response.getBody()).getMessage());
+        assertFalse(Objects.requireNonNull(response.getBody()).getData());
+    }
+
+    @Test
+    void testVerifyToken_Success() {
+        User user = new User(UUID.randomUUID());
+        user.setPassword("password");
+        user.hashPassword();
+
+        AuthorizationInterceptor.AuthValues authValues = new AuthorizationInterceptor
+                .AuthValues(user.getUuid(), user.getPassword());
+
+        when(userRepository.findByUuidAndPassword(authValues.getUuid(), authValues.getHashedPassword()))
+                .thenReturn(Optional.of(user));
+
+        ResponseEntity<ApiResponse<Boolean>> response = authController
+                .validateBearerToken(authValues.getBearerToken());
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNull(Objects.requireNonNull(response.getBody()).getMessage());
+        assertTrue(Objects.requireNonNull(response.getBody()).getData());
     }
 }

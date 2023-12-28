@@ -63,7 +63,8 @@ public class AuthorizationInterceptor implements HandlerInterceptor {
                 return false;
             }
 
-            AuthValues authValues = AuthorizationInterceptor.retrieveTokenValue(authHeader);
+            AuthValues authValues = AuthorizationInterceptor.AuthValues
+                    .extractToken(authHeader);
             if (authValues.getUuid() == null || authValues.getHashedPassword() == null) {
                 handleUnauthorizedResponse(request, response, "Invalid Bearer-Token format");
                 return false;
@@ -86,6 +87,24 @@ public class AuthorizationInterceptor implements HandlerInterceptor {
         }
     }
 
+    @Override
+    public void postHandle(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            Object handler,
+            @Nullable ModelAndView modelAndView) throws Exception {
+        HandlerInterceptor.super.postHandle(request, response, handler, modelAndView);
+    }
+
+    @Override
+    public void afterCompletion(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            Object handler,
+            @Nullable Exception ex) throws Exception {
+        HandlerInterceptor.super.afterCompletion(request, response, handler, ex);
+    }
+
     public static AuthValues retrieveTokenValue(String authorizationHeader) {
         String bearerTokenValue = authorizationHeader.substring("Bearer".length() + 1);
         int indexOfFirstDot = bearerTokenValue.indexOf(".");
@@ -103,6 +122,19 @@ public class AuthorizationInterceptor implements HandlerInterceptor {
         private String hashedPassword;
 
         public AuthValues() {}
+
+        public String getBearerToken() {
+            return "Bearer " + uuid.toString() + "." + hashedPassword;
+        }
+
+        public static AuthValues extractToken(String authorizationHeader) {
+            String[] headerParts = authorizationHeader.split(" ");
+            if (headerParts.length != 2) throw new IllegalArgumentException("Invalid Authorization header format");
+            String[] tokenParts = headerParts[1].split("\\.");;
+            UUID uuid = UUID.fromString(tokenParts[0]);
+            String hashedPassword = tokenParts[1];
+            return new AuthValues(uuid, hashedPassword);
+        }
     }
 
     private void handleUnauthorizedResponse(
@@ -147,23 +179,5 @@ public class AuthorizationInterceptor implements HandlerInterceptor {
         return ResponseEntity
                 .status(HttpStatus.UNAUTHORIZED)
                 .body(new ApiResponse<T>(HttpStatus.UNAUTHORIZED.value(), "No valid session found. Sign in first"));
-    }
-
-    @Override
-    public void postHandle(
-            HttpServletRequest request,
-            HttpServletResponse response,
-            Object handler,
-            @Nullable ModelAndView modelAndView) throws Exception {
-        HandlerInterceptor.super.postHandle(request, response, handler, modelAndView);
-    }
-
-    @Override
-    public void afterCompletion(
-            HttpServletRequest request,
-            HttpServletResponse response,
-            Object handler,
-            @Nullable Exception ex) throws Exception {
-        HandlerInterceptor.super.afterCompletion(request, response, handler, ex);
     }
 }

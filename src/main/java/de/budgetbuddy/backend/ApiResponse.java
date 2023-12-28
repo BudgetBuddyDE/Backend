@@ -1,6 +1,7 @@
 package de.budgetbuddy.backend;
 
 import lombok.Data;
+import org.springframework.http.HttpStatus;
 
 @Data
 public class ApiResponse<T> {
@@ -28,9 +29,20 @@ public class ApiResponse<T> {
         this.data = data;
     }
 
+    public ApiResponse(HttpStatus status, String message) {
+        this.status = status.value();
+        this.message = message;
+    }
+
     public ApiResponse(int status, String message) {
         this.status = status;
         this.message = message;
+    }
+
+    public ApiResponse(HttpStatus status, String message, T data) {
+        this.status = status.value();
+        this.message = message;
+        this.data = data;
     }
 
     public ApiResponse(int status, String message, T data) {

@@ -175,13 +175,13 @@ public class AuthController {
     }
 
     @PostMapping("/verify/token")
-    public ResponseEntity<ApiResponse<Boolean>> validateBearerToken(
+    public ResponseEntity<ApiResponse<User>> validateBearerToken(
             @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorizationHeader
     ) {
         if (authorizationHeader == null || authorizationHeader.isEmpty()) {
             return ResponseEntity
                     .status(HttpStatus.UNAUTHORIZED)
-                    .body(new ApiResponse<>(HttpStatus.UNAUTHORIZED,"No Bearer-Token was provided", false));
+                    .body(new ApiResponse<>(HttpStatus.UNAUTHORIZED,"No Bearer-Token was provided"));
         }
 
         AuthorizationInterceptor.AuthValues authValues = AuthorizationInterceptor.AuthValues
@@ -190,7 +190,7 @@ public class AuthController {
             return ResponseEntity
                     .status(HttpStatus.UNAUTHORIZED)
                     .body(new ApiResponse<>(
-                            HttpStatus.UNAUTHORIZED, "Invalid Bearer-Token format", false));
+                            HttpStatus.UNAUTHORIZED, "Invalid Bearer-Token format"));
         }
 
         Optional<User> optAuthHeaderUser = userRepository
@@ -199,12 +199,12 @@ public class AuthController {
             return ResponseEntity
                     .status(HttpStatus.UNAUTHORIZED)
                     .body(new ApiResponse<>(
-                            HttpStatus.UNAUTHORIZED,"Provided Bearer-Token is invalid", false));
+                            HttpStatus.UNAUTHORIZED,"Provided Bearer-Token is invalid"));
         }
 
         return ResponseEntity
                 .status(HttpStatus.OK)
-                .body(new ApiResponse<>(true));
+                .body(new ApiResponse<>(optAuthHeaderUser.get()));
     }
 
     @GetMapping("/verify")

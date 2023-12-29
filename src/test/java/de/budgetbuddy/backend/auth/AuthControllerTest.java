@@ -264,7 +264,7 @@ class AuthControllerTest {
     @Test
     void testVerifyToken_InvalidFormat() {
         Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            ResponseEntity<ApiResponse<Boolean>> response = authController
+            ResponseEntity<ApiResponse<User>> response = authController
                     .validateBearerToken("token");
         });
 
@@ -284,13 +284,13 @@ class AuthControllerTest {
         when(userRepository.findByUuidAndPassword(authValues.getUuid(), authValues.getHashedPassword()))
                 .thenReturn(Optional.empty());
 
-        ResponseEntity<ApiResponse<Boolean>> response = authController
+        ResponseEntity<ApiResponse<User>> response = authController
                 .validateBearerToken(authValues.getBearerToken());
 
         assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
         assertEquals("Provided Bearer-Token is invalid",
                 Objects.requireNonNull(response.getBody()).getMessage());
-        assertFalse(Objects.requireNonNull(response.getBody()).getData());
+        assertNull(Objects.requireNonNull(response.getBody()).getData());
     }
 
     @Test
@@ -305,11 +305,11 @@ class AuthControllerTest {
         when(userRepository.findByUuidAndPassword(authValues.getUuid(), authValues.getHashedPassword()))
                 .thenReturn(Optional.of(user));
 
-        ResponseEntity<ApiResponse<Boolean>> response = authController
+        ResponseEntity<ApiResponse<User>> response = authController
                 .validateBearerToken(authValues.getBearerToken());
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNull(Objects.requireNonNull(response.getBody()).getMessage());
-        assertTrue(Objects.requireNonNull(response.getBody()).getData());
+        assertEquals(user, Objects.requireNonNull(response.getBody()).getData());
     }
 }

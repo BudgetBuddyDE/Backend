@@ -25,8 +25,10 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpServletRequest;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Component
 public class AuthorizationInterceptor implements HandlerInterceptor {
@@ -132,7 +134,8 @@ public class AuthorizationInterceptor implements HandlerInterceptor {
             if (headerParts.length != 2) throw new IllegalArgumentException("Invalid Authorization header format");
             String[] tokenParts = headerParts[1].split("\\.");;
             UUID uuid = UUID.fromString(tokenParts[0]);
-            String hashedPassword = tokenParts[1];
+            String hashedPassword = Arrays.stream(tokenParts, 1, tokenParts.length)
+                    .collect(Collectors.joining("."));
             return new AuthValues(uuid, hashedPassword);
         }
     }

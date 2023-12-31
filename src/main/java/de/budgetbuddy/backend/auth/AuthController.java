@@ -70,8 +70,8 @@ public class AuthController {
                                 "You need to verify yourself in order to proceed"));
             }
 
-            AuthorizationInterceptor.AuthValues authValues = AuthorizationInterceptor
-                    .retrieveTokenValue(authorizationHeader);
+            AuthorizationInterceptor.AuthValues authValues = AuthorizationInterceptor.AuthValues
+                    .extractToken(authorizationHeader);
             if (authValues.getUuid() == null || authValues.getHashedPassword() == null) {
                 return ResponseEntity
                         .status(HttpStatus.UNAUTHORIZED)
@@ -120,14 +120,14 @@ public class AuthController {
         if (userByEmail.isEmpty()) {
             return ResponseEntity
                     .status(HttpStatus.NOT_FOUND)
-                    .body(new ApiResponse<>(HttpStatus.NOT_FOUND.value(), "There is no user registered under this email address"));
+                    .body(new ApiResponse<>(HttpStatus.NOT_FOUND, "There is no user registered under this email address"));
         }
 
         User savedUser = userByEmail.get();
         if (!BCrypt.checkpw(user.getPassword(), savedUser.getPassword())) {
             return ResponseEntity
                     .status(HttpStatus.UNAUTHORIZED)
-                    .body(new ApiResponse<>(HttpStatus.UNAUTHORIZED.value(), "The provided password is incorrect"));
+                    .body(new ApiResponse<>(HttpStatus.UNAUTHORIZED, "The provided password is incorrect"));
         }
 
         try {
@@ -135,12 +135,12 @@ public class AuthController {
         } catch (JsonProcessingException e) {
             return ResponseEntity
                     .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ApiResponse<>(HttpStatus.INTERNAL_SERVER_ERROR.value(), "You're logged in", savedUser));
+                    .body(new ApiResponse<>(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage()));
         }
 
         return ResponseEntity
                 .status(HttpStatus.OK)
-                .body(new ApiResponse<>(HttpStatus.OK.value(), "You're logged in", savedUser));
+                .body(new ApiResponse<>(HttpStatus.OK, "You're logged in", savedUser));
     }
 
     @PostMapping("/validate")
@@ -169,9 +169,42 @@ public class AuthController {
         } catch (JsonProcessingException e) {
             return ResponseEntity
                     .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ApiResponse<>(HttpStatus.INTERNAL_SERVER_ERROR.value(), "Something went wrong on our side"));
+                    .body(new ApiResponse<>(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage()));
 
         }
+    }
+
+    @PostMapping("/verify/token")
+    public ResponseEntity<ApiResponse<User>> validateBearerToken(
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorizationHeader
+    ) {
+        if (authorizationHeader == null || authorizationHeader.isEmpty()) {
+            return ResponseEntity
+                    .status(HttpStatus.UNAUTHORIZED)
+                    .body(new ApiResponse<>(HttpStatus.UNAUTHORIZED,"No Bearer-Token was provided"));
+        }
+
+        AuthorizationInterceptor.AuthValues authValues = AuthorizationInterceptor.AuthValues
+                .extractToken(authorizationHeader);
+        if (authValues.getUuid() == null || authValues.getHashedPassword() == null) {
+            return ResponseEntity
+                    .status(HttpStatus.UNAUTHORIZED)
+                    .body(new ApiResponse<>(
+                            HttpStatus.UNAUTHORIZED, "Invalid Bearer-Token format"));
+        }
+
+        Optional<User> optAuthHeaderUser = userRepository
+                .findByUuidAndPassword(authValues.getUuid(), authValues.getHashedPassword());
+        if (optAuthHeaderUser.isEmpty()) {
+            return ResponseEntity
+                    .status(HttpStatus.UNAUTHORIZED)
+                    .body(new ApiResponse<>(
+                            HttpStatus.UNAUTHORIZED,"Provided Bearer-Token is invalid"));
+        }
+
+        return ResponseEntity
+                .status(HttpStatus.OK)
+                .body(new ApiResponse<>(optAuthHeaderUser.get()));
     }
 
     @GetMapping("/verify")

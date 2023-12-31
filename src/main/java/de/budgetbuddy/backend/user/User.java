@@ -1,5 +1,6 @@
 package de.budgetbuddy.backend.user;
 
+import de.budgetbuddy.backend.auth.AuthorizationInterceptor;
 import de.budgetbuddy.backend.user.role.Role;
 import de.budgetbuddy.backend.user.role.RolePermission;
 import jakarta.persistence.Entity;
@@ -7,6 +8,7 @@ import jakarta.persistence.Table;
 import lombok.Data;
 
 import jakarta.persistence.*;
+import org.apache.tomcat.util.http.parser.Authorization;
 import org.hibernate.annotations.ColumnDefault;
 import org.mindrot.jbcrypt.BCrypt;
 

@@ -254,7 +254,8 @@ public class AuthController {
                     .body(new ApiResponse<>(HttpStatus.NOT_FOUND.value(), "No user found for the provided email"));
         }
 
-        UserPasswordReset passwordReset = userPasswordResetRepository.save(new UserPasswordReset(optUser.get()));
+        UserPasswordReset passwordReset = userPasswordResetRepository
+                .save(new UserPasswordReset(optUser.get()));
 
         try {
             if (!mailService.trigger(MailService.getRequestPasswordMailPayload(

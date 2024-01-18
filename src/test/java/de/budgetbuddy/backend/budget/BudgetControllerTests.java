@@ -19,9 +19,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
-import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
-
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -32,8 +29,6 @@ import static org.mockito.Mockito.when;
 @SpringBootTest
 @AutoConfigureMockMvc
 public class BudgetControllerTests {
-    @Autowired
-    private MockMvc mockMvc;
     private final UserRepository userRepository;
     private final CategoryRepository categoryRepository;
     private final BudgetRepository budgetRepository;
@@ -412,69 +407,144 @@ public class BudgetControllerTests {
     }
 
     @Test
-    void testDeleteBudget_BudgetNotFound() throws JsonProcessingException {
-        Budget.Delete payload = new Budget.Delete();
-        payload.setBudgetId(1L);
+    void testDeleteBudget_EmptyList() throws JsonProcessingException {
+        List<Budget.Delete> payload = new ArrayList<>();
 
-        when(budgetRepository.findById(payload.getBudgetId()))
-                .thenReturn(Optional.empty());
+        ResponseEntity<ApiResponse<Map<String, List<?>>>> response =
+                budgetController.deleteBudget(payload, session);
 
-        ResponseEntity<ApiResponse<Budget>> response = budgetController.deleteBudget(payload, session);
-
-        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
-        assertEquals("Provided budget doesn't exist",
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertEquals("No budgets we're provided",
                 Objects.requireNonNull(response.getBody()).getMessage());
         assertNull(Objects.requireNonNull(response.getBody()).getData());
+    }
 
+    @Test
+    void testDeleteBudget_AllItemsInvalid() throws JsonProcessingException {
+        User owner = new User(UUID.randomUUID());
+        User sessionUser = new User(UUID.randomUUID());
+        session.setAttribute("user", objectMapper.writeValueAsString(sessionUser));
+
+        List<Budget.Delete> payload = new ArrayList<>();
+        payload.add(Budget.builder()
+                .id(1L)
+                .owner(owner)
+                .build()
+                .toDelete());
+
+
+        when(budgetProgressViewRepository.findById(any(Long.class)))
+                .thenReturn(Optional.empty());
+
+        ResponseEntity<ApiResponse<Map<String, List<?>>>> response =
+                budgetController.deleteBudget(payload, session);
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertEquals("All provided budgets we're invalid values",
+                Objects.requireNonNull(response.getBody()).getMessage());
+        Map<String, List<?>> responseBody = response.getBody().getData();
+        assertEquals(1, responseBody.get("failed").size());
+        assertEquals(0, responseBody.get("success").size());
+    }
+
+    @Test
+    void testDeleteBudget_SomeFailures() throws JsonProcessingException {
+        User owner = new User(UUID.randomUUID());
+        session.setAttribute("user", objectMapper.writeValueAsString(owner));
+
+        List<Budget.Delete> payload = new ArrayList<>();
+        Budget b1 = Budget.builder()
+                .id(1L)
+                .owner(owner)
+                .build();
+        payload.add(b1.toDelete());
+
+        Budget b2 = Budget.builder()
+                .id(2L)
+                .build();
+        payload.add(b2.toDelete());
+
+        when(budgetRepository.findById(1L))
+                .thenReturn(Optional.of(b1));
+        when(budgetRepository.findById(2L))
+                .thenReturn(Optional.empty());
+
+        ResponseEntity<ApiResponse<Map<String, List<?>>>> response =
+                budgetController.deleteBudget(payload, session);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNull(Objects.requireNonNull(response.getBody()).getMessage());
+        Map<String, List<?>> responseBody = response.getBody().getData();
+        assertEquals(1, responseBody.get("failed").size());
+        assertEquals(1, responseBody.get("success").size());
     }
 
     @Test
     void testDeleteBudget_WrongSessionUser() throws JsonProcessingException {
-        User sessionUser = new User();
-        sessionUser.setUuid(UUID.randomUUID());
+        User sessionUser = new User(UUID.randomUUID());
+        User owner = new User(UUID.randomUUID());
         session.setAttribute("user", objectMapper.writeValueAsString(sessionUser));
 
-        User owner = new User();
-        owner.setUuid(UUID.randomUUID());
+        List<Budget.Delete> payload = new ArrayList<>();
+        Budget b1 = Budget.builder()
+                .id(1L)
+                .owner(owner)
+                .build();
+        payload.add(b1.toDelete());
 
-        Budget budget = new Budget();
-        budget.setId(1L);
-        budget.setOwner(owner);
+        Budget b2 =  Budget.builder()
+                .id(2L)
+                .owner(sessionUser)
+                .build();
+        payload.add(b2.toDelete());
 
-        Budget.Delete payload = new Budget.Delete();
-        payload.setBudgetId(budget.getId());
+        when(budgetRepository.findById(1L))
+                .thenReturn(Optional.of(b1));
+        when(budgetRepository.findById(2L))
+                .thenReturn(Optional.of(b2));
 
-        when(budgetRepository.findById(payload.getBudgetId()))
-                .thenReturn(Optional.of(budget));
+        ResponseEntity<ApiResponse<Map<String, List<?>>>> response =
+                budgetController.deleteBudget(payload, session);
 
-        ResponseEntity<ApiResponse<Budget>> response = budgetController.deleteBudget(payload, session);
-
-        assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
-        assertEquals("You can't delete budgets from different users",
-                Objects.requireNonNull(response.getBody()).getMessage());
-        assertNull(Objects.requireNonNull(response.getBody()).getData());
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNull(Objects.requireNonNull(response.getBody()).getMessage());
+        Map<String, List<?>> responseBody = response.getBody().getData();
+        assertEquals(1, responseBody.get("failed").size());
+        assertEquals(1, responseBody.get("success").size());
     }
 
     @Test
     void testDeleteBudget_Success() throws JsonProcessingException {
-        User owner = new User();
-        owner.setUuid(UUID.randomUUID());
+        User owner = new User(UUID.randomUUID());
         session.setAttribute("user", objectMapper.writeValueAsString(owner));
 
-        Budget budget = new Budget();
-        budget.setId(1L);
-        budget.setOwner(owner);
+        List<Budget.Delete> payload = new ArrayList<>();
+        Budget b1 = Budget.builder()
+                .id(1L)
+                .owner(owner)
+                .build();
+        payload.add(b1.toDelete());
 
-        Budget.Delete payload = new Budget.Delete();
-        payload.setBudgetId(budget.getId());
+        Budget b2 = Budget.builder()
+                .id(2L)
+                .owner(owner)
+                .build();
+        payload.add(b2.toDelete());
 
-        when(budgetRepository.findById(payload.getBudgetId()))
-                .thenReturn(Optional.of(budget));
+        when(budgetRepository.findById(1L))
+                .thenReturn(Optional.of(b1));
+        when(budgetRepository.findById(2L))
+                .thenReturn(Optional.of(b2));
 
-        ResponseEntity<ApiResponse<Budget>> response = budgetController.deleteBudget(payload, session);
+        ResponseEntity<ApiResponse<Map<String, List<?>>>> response =
+                budgetController.deleteBudget(payload, session);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNull(Objects.requireNonNull(response.getBody()).getMessage());
-        assertEquals(budget, Objects.requireNonNull(response.getBody()).getData());
+        Map<String, List<?>> responseBody = response.getBody().getData();
+        assertEquals(0, responseBody.get("failed").size());
+        assertEquals(2, responseBody.get("success").size());
+        assertEquals(List.of(b1, b2), responseBody.get("success"));
     }
+
 }

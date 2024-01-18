@@ -11,10 +11,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 
 @RestController
 @RequestMapping("/v1/payment-method")
@@ -108,27 +105,47 @@ public class PaymentMethodController {
     }
 
     @DeleteMapping
-    public ResponseEntity<ApiResponse<PaymentMethod>> deletePaymentMethod(@RequestBody PaymentMethod.Delete payload, HttpSession session) throws JsonProcessingException {
-        Optional<PaymentMethod> paymentMethod =  paymentMethodRepository.findById(payload.getPaymentMethodId());
-        if (paymentMethod.isEmpty()) {
+    public ResponseEntity<ApiResponse<Map<String, List<?>>>> deletePaymentMethods(
+            @RequestBody List<PaymentMethod.Delete> payloads,
+            HttpSession session) throws JsonProcessingException {
+        if (payloads.size() == 0) {
             return ResponseEntity
-                    .status(HttpStatus.NOT_FOUND)
-                    .body(new ApiResponse<>(404, "Provided payment-method doesn't exist"));
+                    .status(HttpStatus.BAD_REQUEST)
+                    .body(new ApiResponse<>(HttpStatus.BAD_REQUEST, "No payment-methods we're provided"));
         }
 
-        Optional<User> sessionUser = AuthorizationInterceptor.getSessionUser(session);
-        if (sessionUser.isEmpty()) {
-            return AuthorizationInterceptor.noValidSessionResponse();
-        } else if (!sessionUser.get().getUuid().equals(paymentMethod.get().getOwner().getUuid())) {
-            return ResponseEntity
-                    .status(HttpStatus.CONFLICT)
-                    .body(new ApiResponse<>(HttpStatus.CONFLICT.value(), "You can't delete payment-methods from other users"));
+        List<PaymentMethod> successfullyDeleted = new ArrayList<>();
+        List<PaymentMethod.Delete> failedToDelete = new ArrayList<>();
+
+        for (PaymentMethod.Delete payload : payloads) {
+            Optional<PaymentMethod> optionalPaymentMethod = paymentMethodRepository.findById(payload.getPaymentMethodId());
+            if (optionalPaymentMethod.isEmpty()) {
+                failedToDelete.add(payload);
+            } else {
+                PaymentMethod paymentMethod = optionalPaymentMethod.get();
+                User paymentMethodOwner = paymentMethod.getOwner();
+                Optional<User> optSessionUser = AuthorizationInterceptor.getSessionUser(session);
+
+                if (optSessionUser.isEmpty()
+                        || !optSessionUser.get().getUuid().equals(paymentMethodOwner.getUuid())) {
+                    failedToDelete.add(payload);
+                } else {
+                    paymentMethodRepository.delete(paymentMethod);
+                    successfullyDeleted.add(paymentMethod);
+                }
+            }
         }
 
-        paymentMethodRepository.deleteById(payload.getPaymentMethodId());
+        Map<String, List<?>> response = new HashMap<>();
+        response.put("success", successfullyDeleted);
+        response.put("failed", failedToDelete);
+        boolean didAllFail = failedToDelete.size() == payloads.size();
         return ResponseEntity
-                .status(HttpStatus.OK)
-                .body(new ApiResponse<>(200, paymentMethod.get()));
+                .status(didAllFail ? HttpStatus.BAD_REQUEST : HttpStatus.OK)
+                .body(new ApiResponse<>(
+                        didAllFail ? HttpStatus.BAD_REQUEST : HttpStatus.OK,
+                        didAllFail ? "All provided payment-methods we're invalid values" : null,
+                        response));
     }
 
 }

@@ -8,6 +8,7 @@ import de.budgetbuddy.backend.category.Category;
 import de.budgetbuddy.backend.category.CategoryRepository;
 import de.budgetbuddy.backend.paymentMethod.PaymentMethod;
 import de.budgetbuddy.backend.paymentMethod.PaymentMethodRepository;
+import de.budgetbuddy.backend.transaction.Transaction;
 import de.budgetbuddy.backend.user.User;
 import de.budgetbuddy.backend.user.UserRepository;
 import de.budgetbuddy.backend.user.role.Role;
@@ -585,42 +586,110 @@ public class SubscriptionControllerTests {
     }
 
     @Test
-    void testDeleteSubscription_TransactionNotFound() throws JsonProcessingException {
-        Subscription.Delete payload = new Subscription.Delete();
-        payload.setSubscriptionId(1L);
+    void testDeleteSubscription_EmptyList() throws JsonProcessingException {
+        List<Subscription.Delete> payload = new ArrayList<>();
 
-        when(subscriptionRepository.findById(payload.getSubscriptionId()))
-                .thenReturn(Optional.empty());
+        ResponseEntity<ApiResponse<Map<String, List<?>>>> response =
+                subscriptionController.deleteSubscriptions(payload, session);
 
-        ResponseEntity<ApiResponse<Subscription>> response = subscriptionController.deleteSubscription(payload, session);
-
-        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
-        assertEquals("Provided subscription not found", Objects.requireNonNull(response.getBody()).getMessage());
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertEquals("No subscriptions we're provided",
+                Objects.requireNonNull(response.getBody()).getMessage());
         assertNull(Objects.requireNonNull(response.getBody()).getData());
     }
 
     @Test
-    void testDeleteSubscription_WrongSessionUser() throws JsonProcessingException {
-        session.setAttribute("user", objectMapper.writeValueAsString(new User(UUID.randomUUID())));
-
+    void testDeleteSubscription_AllItemsInvalid() throws JsonProcessingException {
         User owner = new User(UUID.randomUUID());
+        User sessionUser = new User(UUID.randomUUID());
+        session.setAttribute("user", objectMapper.writeValueAsString(sessionUser));
 
-        Subscription subscription = new Subscription();
-        subscription.setId(1L);
-        subscription.setOwner(owner);
+        List<Subscription.Delete> payload = new ArrayList<>();
+        payload.add(Subscription.builder()
+                .id(1L)
+                .owner(owner)
+                .build()
+                .toDelete());
 
-        Subscription.Delete payload = new Subscription.Delete();
-        payload.setSubscriptionId(1L);
 
-        when(subscriptionRepository.findById(payload.getSubscriptionId()))
-                .thenReturn(Optional.of(subscription));
+        when(subscriptionRepository.findById(any(Long.class)))
+                .thenReturn(Optional.empty());
 
-        ResponseEntity<ApiResponse<Subscription>> response = subscriptionController.deleteSubscription(payload, session);
+        ResponseEntity<ApiResponse<Map<String, List<?>>>> response =
+                subscriptionController.deleteSubscriptions(payload, session);
 
-        assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
-        assertEquals("You don't own this subscription",
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertEquals("All provided subscriptions we're invalid values",
                 Objects.requireNonNull(response.getBody()).getMessage());
-        assertNull(Objects.requireNonNull(response.getBody()).getData());
+        Map<String, List<?>> responseBody = response.getBody().getData();
+        assertEquals(1, responseBody.get("failed").size());
+        assertEquals(0, responseBody.get("success").size());
+    }
+
+    @Test
+    void testDeleteSubscription_SomeFailures() throws JsonProcessingException {
+        User owner = new User(UUID.randomUUID());
+        session.setAttribute("user", objectMapper.writeValueAsString(owner));
+
+        List<Subscription.Delete> payload = new ArrayList<>();
+        Subscription s1 = Subscription.builder()
+                .id(1L)
+                .owner(owner)
+                .build();
+        payload.add(s1.toDelete());
+
+        Subscription s2 = Subscription.builder()
+                .id(2L)
+                .build();
+        payload.add(s2.toDelete());
+
+        when(subscriptionRepository.findById(1L))
+                .thenReturn(Optional.of(s1));
+        when(categoryRepository.findById(2L))
+                .thenReturn(Optional.empty());
+
+        ResponseEntity<ApiResponse<Map<String, List<?>>>> response =
+                subscriptionController.deleteSubscriptions(payload, session);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNull(Objects.requireNonNull(response.getBody()).getMessage());
+        Map<String, List<?>> responseBody = response.getBody().getData();
+        assertEquals(1, responseBody.get("failed").size());
+        assertEquals(1, responseBody.get("success").size());
+    }
+
+    @Test
+    void testDeleteSubscription_WrongSessionUser() throws JsonProcessingException {
+        User sessionUser = new User(UUID.randomUUID());
+        User owner = new User(UUID.randomUUID());
+        session.setAttribute("user", objectMapper.writeValueAsString(sessionUser));
+
+        List<Subscription.Delete> payload = new ArrayList<>();
+        Subscription s1 = Subscription.builder()
+                .id(1L)
+                .owner(owner)
+                .build();
+        payload.add(s1.toDelete());
+
+        Subscription s2 = Subscription.builder()
+                .id(2L)
+                .owner(sessionUser)
+                .build();
+        payload.add(s2.toDelete());
+
+        when(subscriptionRepository.findById(1L))
+                .thenReturn(Optional.of(s1));
+        when(subscriptionRepository.findById(2L))
+                .thenReturn(Optional.of(s2));
+
+        ResponseEntity<ApiResponse<Map<String, List<?>>>> response =
+                subscriptionController.deleteSubscriptions(payload, session);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNull(Objects.requireNonNull(response.getBody()).getMessage());
+        Map<String, List<?>> responseBody = response.getBody().getData();
+        assertEquals(1, responseBody.get("failed").size());
+        assertEquals(1, responseBody.get("success").size());
     }
 
     @Test
@@ -628,20 +697,32 @@ public class SubscriptionControllerTests {
         User owner = new User(UUID.randomUUID());
         session.setAttribute("user", objectMapper.writeValueAsString(owner));
 
-        Subscription subscription = new Subscription();
-        subscription.setId(1L);
-        subscription.setOwner(owner);
+        List<Subscription.Delete> payload = new ArrayList<>();
+        Subscription s1 = Subscription.builder()
+                .id(1L)
+                .owner(owner)
+                .build();
+        payload.add(s1.toDelete());
 
-        Subscription.Delete payload = new Subscription.Delete();
-        payload.setSubscriptionId(1L);
+        Subscription s2 = Subscription.builder()
+                .id(2L)
+                .owner(owner)
+                .build();
+        payload.add(s2.toDelete());
 
-        when(subscriptionRepository.findById(payload.getSubscriptionId()))
-                .thenReturn(Optional.of(subscription));
+        when(subscriptionRepository.findById(1L))
+                .thenReturn(Optional.of(s1));
+        when(subscriptionRepository.findById(2L))
+                .thenReturn(Optional.of(s2));
 
-        ResponseEntity<ApiResponse<Subscription>> response = subscriptionController.deleteSubscription(payload, session);
+        ResponseEntity<ApiResponse<Map<String, List<?>>>> response =
+                subscriptionController.deleteSubscriptions(payload, session);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNull(Objects.requireNonNull(response.getBody()).getMessage());
-        assertEquals(subscription, Objects.requireNonNull(response.getBody()).getData());
+        Map<String, List<?>> responseBody = response.getBody().getData();
+        assertEquals(0, responseBody.get("failed").size());
+        assertEquals(2, responseBody.get("success").size());
+        assertEquals(List.of(s1, s2), responseBody.get("success"));
     }
 }

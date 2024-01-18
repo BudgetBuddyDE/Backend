@@ -5,6 +5,7 @@ import de.budgetbuddy.backend.ApiResponse;
 import de.budgetbuddy.backend.auth.AuthorizationInterceptor;
 import de.budgetbuddy.backend.category.Category;
 import de.budgetbuddy.backend.category.CategoryRepository;
+import de.budgetbuddy.backend.transaction.Transaction;
 import de.budgetbuddy.backend.user.User;
 import de.budgetbuddy.backend.user.UserRepository;
 import jakarta.servlet.http.HttpSession;
@@ -13,10 +14,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 
 @RestController
 @RequestMapping("/v1/budget")
@@ -163,27 +161,46 @@ public class BudgetController {
     }
 
     @DeleteMapping
-    public ResponseEntity<ApiResponse<Budget>> deleteBudget(@RequestBody Budget.Delete payload, HttpSession session) throws JsonProcessingException {
-        Optional<Budget> budget = budgetRepository.findById(payload.getBudgetId());
-        if (budget.isEmpty()) {
+    public ResponseEntity<ApiResponse<Map<String, List<?>>>> deleteBudget(
+            @RequestBody List<Budget.Delete> payloads,
+            HttpSession session) throws JsonProcessingException {
+        if (payloads.size() == 0) {
             return ResponseEntity
-                    .status(HttpStatus.NOT_FOUND)
-                    .body(new ApiResponse<>(404, "Provided budget doesn't exist"));
+                    .status(HttpStatus.BAD_REQUEST)
+                    .body(new ApiResponse<>(HttpStatus.BAD_REQUEST, "No budgets we're provided"));
         }
 
-        Optional<User> sessionUser = AuthorizationInterceptor.getSessionUser(session);
-        if (sessionUser.isEmpty()) {
-            return AuthorizationInterceptor.noValidSessionResponse();
-        } else if (!sessionUser.get().getUuid().equals(budget.get().getOwner().getUuid())) {
-            return ResponseEntity
-                    .status(HttpStatus.CONFLICT)
-                    .body(new ApiResponse<>(HttpStatus.CONFLICT.value(), "You can't delete budgets from different users"));
+        List<Budget> successfullyDeleted = new ArrayList<>();
+        List<Budget.Delete> failedToDelete = new ArrayList<>();
+
+        for (Budget.Delete payload : payloads) {
+            Optional<Budget> optBudget = budgetRepository.findById(payload.getBudgetId());
+            if (optBudget.isEmpty()) {
+                failedToDelete.add(payload);
+            } else {
+                Budget budget = optBudget.get();
+                User budgetOwner = budget.getOwner();
+                Optional<User> optSessionUser = AuthorizationInterceptor.getSessionUser(session);
+
+                if (optSessionUser.isEmpty()
+                        || !optSessionUser.get().getUuid().equals(budgetOwner.getUuid())) {
+                    failedToDelete.add(payload);
+                } else {
+                    budgetRepository.delete(budget);
+                    successfullyDeleted.add(budget);
+                }
+            }
         }
 
-
-        budgetRepository.deleteById(payload.getBudgetId());
+        Map<String, List<?>> response = new HashMap<>();
+        response.put("success", successfullyDeleted);
+        response.put("failed", failedToDelete);
+        boolean didAllFail = failedToDelete.size() == payloads.size();
         return ResponseEntity
-                .status(HttpStatus.OK)
-                .body(new ApiResponse<>(200, budget.get()));
+                .status(didAllFail ? HttpStatus.BAD_REQUEST : HttpStatus.OK)
+                .body(new ApiResponse<>(
+                        didAllFail ? HttpStatus.BAD_REQUEST : HttpStatus.OK,
+                        didAllFail ? "All provided budgets we're invalid values" : null,
+                        response));
     }
 }

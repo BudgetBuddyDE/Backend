@@ -3,7 +3,6 @@ package de.budgetbuddy.backend.transaction;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import de.budgetbuddy.backend.ApiResponse;
 import de.budgetbuddy.backend.auth.AuthorizationInterceptor;
-import de.budgetbuddy.backend.category.Category;
 import de.budgetbuddy.backend.category.CategoryRepository;
 import de.budgetbuddy.backend.paymentMethod.PaymentMethod;
 import de.budgetbuddy.backend.paymentMethod.PaymentMethodRepository;
@@ -67,7 +66,7 @@ public class TransactionController {
                         .body(new ApiResponse<>(HttpStatus.CONFLICT.value(), "You don't have the permissions to create transactions for a different user"));
             }
 
-            Optional<Category> optCategory = categoryRepository
+            Optional<de.budgetbuddy.backend.category.Category> optCategory = categoryRepository
                     .findByIdAndOwner(transactionAttrs.getCategoryId(), transactionOwner);
             if (optCategory.isEmpty()) {
                 return ResponseEntity
@@ -149,7 +148,7 @@ public class TransactionController {
                     .body(new ApiResponse<>(HttpStatus.CONFLICT.value(), "You don't own this transaction"));
         }
 
-        Optional<Category> optCategory = categoryRepository.findByIdAndOwner(payload.getCategoryId(), transactionOwner);
+        Optional<de.budgetbuddy.backend.category.Category> optCategory = categoryRepository.findByIdAndOwner(payload.getCategoryId(), transactionOwner);
         if (optCategory.isEmpty()) {
             return ResponseEntity
                     .status(HttpStatus.NOT_FOUND)
@@ -181,29 +180,47 @@ public class TransactionController {
     }
 
     @DeleteMapping
-    public ResponseEntity<ApiResponse<Transaction>> deleteTransaction(@RequestBody Transaction.Delete payload, HttpSession session) throws JsonProcessingException {
-        Optional<Transaction> optTransaction = transactionRepository.findById(payload.getTransactionId());
-        if (optTransaction.isEmpty()) {
+    public ResponseEntity<ApiResponse<Map<String, List<?>>>> deleteTransactions(
+            @RequestBody List<Transaction.Delete> payloads,
+            HttpSession session) throws JsonProcessingException {
+        if (payloads.size() == 0) {
             return ResponseEntity
-                    .status(HttpStatus.NOT_FOUND)
-                    .body(new ApiResponse<>(HttpStatus.NOT_FOUND.value(), "Provided transaction not found"));
+                    .status(HttpStatus.BAD_REQUEST)
+                    .body(new ApiResponse<>(HttpStatus.BAD_REQUEST, "No transactions we're provided"));
         }
 
-        Transaction transaction = optTransaction.get();
-        User transactionOwner = transaction.getOwner();
-        Optional<User> optSessionUser = AuthorizationInterceptor.getSessionUser(session);
-        if (optSessionUser.isEmpty()) {
-            return AuthorizationInterceptor.noValidSessionResponse();
-        } else if (!optSessionUser.get().getUuid().equals(transactionOwner.getUuid())) {
-            return ResponseEntity
-                    .status(HttpStatus.CONFLICT)
-                    .body(new ApiResponse<>(HttpStatus.CONFLICT.value(), "You don't own this transaction"));
+        List<Transaction> successfullyDeleted = new ArrayList<>();
+        List<Transaction.Delete> failedToDelete = new ArrayList<>();
+
+        for (Transaction.Delete payload : payloads) {
+            Optional<Transaction> optTransaction = transactionRepository.findById(payload.getTransactionId());
+            if (optTransaction.isEmpty()) {
+                failedToDelete.add(payload);
+            } else {
+                Transaction transaction = optTransaction.get();
+                User transactionOwner = transaction.getOwner();
+                Optional<User> optSessionUser = AuthorizationInterceptor.getSessionUser(session);
+
+                if (optSessionUser.isEmpty()
+                        || !optSessionUser.get().getUuid().equals(transactionOwner.getUuid())) {
+                    failedToDelete.add(payload);
+                } else {
+                    transactionRepository.delete(transaction);
+                    successfullyDeleted.add(transaction);
+                }
+            }
         }
 
-        transactionRepository.delete(transaction);
+        Map<String, List<?>> response = new HashMap<>();
+        response.put("success", successfullyDeleted);
+        response.put("failed", failedToDelete);
+        boolean didAllFail = failedToDelete.size() == payloads.size();
         return ResponseEntity
-                .status(HttpStatus.OK)
-                .body(new ApiResponse<>(transaction));
+                .status(didAllFail ? HttpStatus.BAD_REQUEST : HttpStatus.OK)
+                .body(new ApiResponse<>(
+                        didAllFail ? HttpStatus.BAD_REQUEST : HttpStatus.OK,
+                        didAllFail ? "All provided transactions we're invalid values" : null,
+                        response));
     }
 
     @GetMapping("/daily")

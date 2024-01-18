@@ -7,6 +7,7 @@ import de.budgetbuddy.backend.category.Category;
 import de.budgetbuddy.backend.category.CategoryRepository;
 import de.budgetbuddy.backend.paymentMethod.PaymentMethod;
 import de.budgetbuddy.backend.paymentMethod.PaymentMethodRepository;
+import de.budgetbuddy.backend.transaction.Transaction;
 import de.budgetbuddy.backend.user.User;
 import de.budgetbuddy.backend.user.UserRepository;
 import de.budgetbuddy.backend.user.role.RolePermission;
@@ -16,10 +17,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 
 @RestController
 @RequestMapping("/v1/subscription")
@@ -222,28 +220,46 @@ public class SubscriptionController {
     }
 
     @DeleteMapping
-    public ResponseEntity<ApiResponse<Subscription>> deleteSubscription(@RequestBody Subscription.Delete payload, HttpSession session) throws JsonProcessingException {
-        Optional<Subscription> optSubscription = subscriptionRepository.findById(payload.getSubscriptionId());
-        if (optSubscription.isEmpty()) {
+    public ResponseEntity<ApiResponse<Map<String, List<?>>>> deleteSubscriptions(
+            @RequestBody List<Subscription.Delete> payloads,
+            HttpSession session) throws JsonProcessingException {
+        if (payloads.size() == 0) {
             return ResponseEntity
-                    .status(HttpStatus.NOT_FOUND)
-                    .body(new ApiResponse<>(HttpStatus.NOT_FOUND.value(), "Provided subscription not found"));
+                    .status(HttpStatus.BAD_REQUEST)
+                    .body(new ApiResponse<>(HttpStatus.BAD_REQUEST, "No subscriptions we're provided"));
         }
 
-        Subscription subscription = optSubscription.get();
-        User subscriptionOwner = subscription.getOwner();
-        Optional<User> optSessionUser = AuthorizationInterceptor.getSessionUser(session);
-        if (optSessionUser.isEmpty()) {
-            return AuthorizationInterceptor.noValidSessionResponse();
-        } else if (!optSessionUser.get().getUuid().equals(subscriptionOwner.getUuid())) {
-            return ResponseEntity
-                    .status(HttpStatus.CONFLICT)
-                    .body(new ApiResponse<>(HttpStatus.CONFLICT.value(), "You don't own this subscription"));
+        List<Subscription> successfullyDeleted = new ArrayList<>();
+        List<Subscription.Delete> failedToDelete = new ArrayList<>();
+
+        for (Subscription.Delete payload : payloads) {
+            Optional<Subscription> optSubscription = subscriptionRepository.findById(payload.getSubscriptionId());
+            if (optSubscription.isEmpty()) {
+                failedToDelete.add(payload);
+            } else {
+                Subscription subscription = optSubscription.get();
+                User subscriptionOwner = subscription.getOwner();
+                Optional<User> optSessionUser = AuthorizationInterceptor.getSessionUser(session);
+
+                if (optSessionUser.isEmpty()
+                        || !optSessionUser.get().getUuid().equals(subscriptionOwner.getUuid())) {
+                    failedToDelete.add(payload);
+                } else {
+                    subscriptionRepository.delete(subscription);
+                    successfullyDeleted.add(subscription);
+                }
+            }
         }
 
-        subscriptionRepository.delete(subscription);
+        Map<String, List<?>> response = new HashMap<>();
+        response.put("success", successfullyDeleted);
+        response.put("failed", failedToDelete);
+        boolean didAllFail = failedToDelete.size() == payloads.size();
         return ResponseEntity
-                .status(HttpStatus.OK)
-                .body(new ApiResponse<>(subscription));
+                .status(didAllFail ? HttpStatus.BAD_REQUEST : HttpStatus.OK)
+                .body(new ApiResponse<>(
+                        didAllFail ? HttpStatus.BAD_REQUEST : HttpStatus.OK,
+                        didAllFail ? "All provided subscriptions we're invalid values" : null,
+                        response));
     }
 }

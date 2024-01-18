@@ -55,12 +55,12 @@ public class CategoryControllerTests {
     @Test
     void testCreateCategory_UserNotFound() throws JsonProcessingException {
         UUID uuid = UUID.randomUUID();
-        Category.Create payload = new Category.Create();
+        de.budgetbuddy.backend.category.Category.Create payload = new de.budgetbuddy.backend.category.Category.Create();
         payload.setOwner(uuid);
 
         when(userRepository.findById(uuid)).thenReturn(Optional.empty());
 
-        ResponseEntity<ApiResponse<Category>> response = categoryController.createCategory(payload, session);
+        ResponseEntity<ApiResponse<de.budgetbuddy.backend.category.Category>> response = categoryController.createCategory(payload, session);
 
         assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
         assertEquals("Provided user doesn't exist", Objects.requireNonNull(response.getBody()).getMessage());
@@ -70,11 +70,11 @@ public class CategoryControllerTests {
     @Test
     void testCreateCategory_CategoryAlreadyExists() throws JsonProcessingException {
         UUID uuid = UUID.randomUUID();
-        Category.Create payload = new Category.Create();
+        de.budgetbuddy.backend.category.Category.Create payload = new de.budgetbuddy.backend.category.Category.Create();
         payload.setOwner(uuid);
         payload.setName("Shopping");
 
-        Category existingCategory = new Category();
+        de.budgetbuddy.backend.category.Category existingCategory = new de.budgetbuddy.backend.category.Category();
         existingCategory.setName("Shopping");
 
         User user = new User();
@@ -85,7 +85,7 @@ public class CategoryControllerTests {
         when(categoryRepository.findByOwnerAndName(user, payload.getName()))
                 .thenReturn(Optional.of(existingCategory));
 
-        ResponseEntity<ApiResponse<Category>> response = categoryController.createCategory(payload, session);
+        ResponseEntity<ApiResponse<de.budgetbuddy.backend.category.Category>> response = categoryController.createCategory(payload, session);
 
         assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
         assertEquals("There is already an category by this name",
@@ -96,7 +96,7 @@ public class CategoryControllerTests {
     @Test
     void testCreateCategory_Success() throws JsonProcessingException {
         UUID uuid = UUID.randomUUID();
-        Category.Create payload = new Category.Create();
+        de.budgetbuddy.backend.category.Category.Create payload = new de.budgetbuddy.backend.category.Category.Create();
         payload.setOwner(uuid);
         payload.setName("Shopping");
 
@@ -105,13 +105,13 @@ public class CategoryControllerTests {
 
         session.setAttribute("user", objMapper.writeValueAsString(user));
 
-        Category category = new Category(user, payload.getName(), null);
+        de.budgetbuddy.backend.category.Category category = new de.budgetbuddy.backend.category.Category(user, payload.getName(), null);
 
         when(userRepository.findById(uuid)).thenReturn(Optional.of(user));
         when(categoryRepository.findByOwnerAndName(user, payload.getName())).thenReturn(Optional.empty());
-        when(categoryRepository.save(any(Category.class))).thenReturn(category);
+        when(categoryRepository.save(any(de.budgetbuddy.backend.category.Category.class))).thenReturn(category);
 
-        ResponseEntity<ApiResponse<Category>> response = categoryController.createCategory(payload, session);
+        ResponseEntity<ApiResponse<de.budgetbuddy.backend.category.Category>> response = categoryController.createCategory(payload, session);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(category, Objects.requireNonNull(response.getBody()).getData());
@@ -121,14 +121,14 @@ public class CategoryControllerTests {
     @Test
     void testCreateCategory_TryForDiffSessionUser() throws JsonProcessingException {
         UUID uuid = UUID.randomUUID();
-        Category.Create payload = new Category.Create();
+        de.budgetbuddy.backend.category.Category.Create payload = new de.budgetbuddy.backend.category.Category.Create();
         payload.setOwner(uuid);
         payload.setName("Shopping");
 
         User user = new User();
         user.setUuid(uuid);
 
-        Category category = new Category(user, payload.getName(), null);
+        de.budgetbuddy.backend.category.Category category = new de.budgetbuddy.backend.category.Category(user, payload.getName(), null);
 
         User sessionUser = new User();
         sessionUser.setUuid(UUID.randomUUID());
@@ -136,9 +136,9 @@ public class CategoryControllerTests {
 
         when(userRepository.findById(uuid)).thenReturn(Optional.of(user));
         when(categoryRepository.findByOwnerAndName(user, payload.getName())).thenReturn(Optional.empty());
-        when(categoryRepository.save(any(Category.class))).thenReturn(category);
+        when(categoryRepository.save(any(de.budgetbuddy.backend.category.Category.class))).thenReturn(category);
 
-        ResponseEntity<ApiResponse<Category>> response = categoryController.createCategory(payload, session);
+        ResponseEntity<ApiResponse<de.budgetbuddy.backend.category.Category>> response = categoryController.createCategory(payload, session);
 
         assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
         assertEquals("You can't create categories for other users", Objects.requireNonNull(response.getBody()).getMessage());
@@ -157,7 +157,7 @@ public class CategoryControllerTests {
 
         when(userRepository.findById(uuid)).thenReturn(Optional.of(user));
 
-        ResponseEntity<ApiResponse<List<Category>>> response = categoryController.getCategoriesByUuid(uuid, session);
+        ResponseEntity<ApiResponse<List<de.budgetbuddy.backend.category.Category>>> response = categoryController.getCategoriesByUuid(uuid, session);
 
         assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
         assertEquals("You can't retrieve categories from different users",
@@ -167,7 +167,7 @@ public class CategoryControllerTests {
 
     @Test
     void retrieveCategoriesWithValidSession() throws JsonProcessingException {
-        List<Category> categories = new ArrayList<>();
+        List<de.budgetbuddy.backend.category.Category> categories = new ArrayList<>();
         UUID uuid = UUID.randomUUID();
         User user = new User();
         user.setUuid(uuid);
@@ -178,7 +178,7 @@ public class CategoryControllerTests {
         when(categoryRepository.findAllByOwner(user)).thenReturn(categories);
 
         session.setAttribute("user", objMapper.writeValueAsString(user));
-        ResponseEntity<ApiResponse<List<Category>>> response = categoryController.getCategoriesByUuid(uuid, session);
+        ResponseEntity<ApiResponse<List<de.budgetbuddy.backend.category.Category>>> response = categoryController.getCategoriesByUuid(uuid, session);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNull(Objects.requireNonNull(response.getBody()).getMessage());
@@ -187,12 +187,12 @@ public class CategoryControllerTests {
 
     @Test
     void testUpdateCategory_CategoryNotFound() throws JsonProcessingException {
-        Category.Update payload = new Category.Update();
+        de.budgetbuddy.backend.category.Category.Update payload = new de.budgetbuddy.backend.category.Category.Update();
         payload.setCategoryId(1L);
 
         when(categoryRepository.findById(payload.getCategoryId())).thenReturn(Optional.empty());
 
-        ResponseEntity<ApiResponse<Category>> response = categoryController.updateCategory(payload, session);
+        ResponseEntity<ApiResponse<de.budgetbuddy.backend.category.Category>> response = categoryController.updateCategory(payload, session);
 
         assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
         assertEquals("Provided category doesn't exist", Objects.requireNonNull(response.getBody()).getMessage());
@@ -204,17 +204,17 @@ public class CategoryControllerTests {
         User user = new User();
         user.setUuid(UUID.randomUUID());
 
-        Category c1 = new Category();
+        de.budgetbuddy.backend.category.Category c1 = new de.budgetbuddy.backend.category.Category();
         c1.setId(1L);
         c1.setName("Shopping");
         c1.setOwner(user);
 
-        Category c2 = new Category();
+        de.budgetbuddy.backend.category.Category c2 = new de.budgetbuddy.backend.category.Category();
         c2.setId(2L);
         c2.setName("Not Shopping");
         c2.setOwner(user);
 
-        Category.Update payload = new Category.Update();
+        de.budgetbuddy.backend.category.Category.Update payload = new de.budgetbuddy.backend.category.Category.Update();
         payload.setCategoryId(c2.getId());
         payload.setName(c1.getName());
 
@@ -223,7 +223,7 @@ public class CategoryControllerTests {
 
         session.setAttribute("user", objMapper.writeValueAsString(user));
 
-        ResponseEntity<ApiResponse<Category>> response = categoryController.updateCategory(payload, session);
+        ResponseEntity<ApiResponse<de.budgetbuddy.backend.category.Category>> response = categoryController.updateCategory(payload, session);
 
         assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
         assertEquals("There is already an category by this name", Objects.requireNonNull(response.getBody()).getMessage());
@@ -235,16 +235,16 @@ public class CategoryControllerTests {
         User user = new User();
         user.setUuid(UUID.randomUUID());
 
-        Category category = new Category();
+        de.budgetbuddy.backend.category.Category category = new de.budgetbuddy.backend.category.Category();
         category.setId(1L);
         category.setOwner(user);
         category.setName("Not Shopping");
 
-        Category.Update payload = new Category.Update();
+        de.budgetbuddy.backend.category.Category.Update payload = new de.budgetbuddy.backend.category.Category.Update();
         payload.setCategoryId(1L);
         payload.setName("Shopping");
 
-        Category updatedCategory = new Category();
+        de.budgetbuddy.backend.category.Category updatedCategory = new de.budgetbuddy.backend.category.Category();
         updatedCategory.setId(1L);
         updatedCategory.setOwner(user);
         updatedCategory.setName("Shopping");
@@ -253,9 +253,9 @@ public class CategoryControllerTests {
 
         when(categoryRepository.findById(1L)).thenReturn(Optional.of(category));
         when(categoryRepository.findByOwnerAndName(user, payload.getName())).thenReturn(Optional.empty());
-        when(categoryRepository.save(any(Category.class))).thenReturn(updatedCategory);
+        when(categoryRepository.save(any(de.budgetbuddy.backend.category.Category.class))).thenReturn(updatedCategory);
 
-        ResponseEntity<ApiResponse<Category>> response = categoryController.updateCategory(payload, session);
+        ResponseEntity<ApiResponse<de.budgetbuddy.backend.category.Category>> response = categoryController.updateCategory(payload, session);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNull(Objects.requireNonNull(response.getBody()).getMessage());
@@ -270,12 +270,12 @@ public class CategoryControllerTests {
         User sessionUser = new User();
         sessionUser.setUuid(UUID.randomUUID());
 
-        Category category = new Category();
+        de.budgetbuddy.backend.category.Category category = new de.budgetbuddy.backend.category.Category();
         category.setId(1L);
         category.setOwner(user);
         category.setName("Not Shopping");
 
-        Category.Update payload = new Category.Update();
+        de.budgetbuddy.backend.category.Category.Update payload = new de.budgetbuddy.backend.category.Category.Update();
         payload.setCategoryId(1L);
         payload.setName("Shopping");
 
@@ -283,95 +283,152 @@ public class CategoryControllerTests {
 
         when(categoryRepository.findById(1L)).thenReturn(Optional.of(category));
         when(categoryRepository.findByOwnerAndName(user, payload.getName())).thenReturn(Optional.empty());
-        when(categoryRepository.save(any(Category.class))).thenReturn(category);
+        when(categoryRepository.save(any(de.budgetbuddy.backend.category.Category.class))).thenReturn(category);
 
-        ResponseEntity<ApiResponse<Category>> response = categoryController.updateCategory(payload, session);
+        ResponseEntity<ApiResponse<de.budgetbuddy.backend.category.Category>> response = categoryController.updateCategory(payload, session);
 
         assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
         assertEquals("You can't modify categories from other users", Objects.requireNonNull(response.getBody()).getMessage());
         assertNull(Objects.requireNonNull(response.getBody()).getData());
     }
-
     @Test
-    void testDeleteCategory_NotFound() throws JsonProcessingException {
-        Category.Delete payload = new Category.Delete();
-        payload.setCategoryId(1L);
+    void testDeleteCategory_EmptyList() throws JsonProcessingException {
+        List<Category.Delete> payload = new ArrayList<>();
 
-        when(categoryRepository.findById(payload.getCategoryId())).thenReturn(Optional.empty());
+        ResponseEntity<ApiResponse<Map<String, List<?>>>> response =
+                categoryController.deleteCategories(payload, session);
 
-        ResponseEntity<ApiResponse<Category>> response = categoryController.deleteCategory(payload, session);
-
-        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
-        assertEquals("Provided category doesn't exist", Objects.requireNonNull(response.getBody()).getMessage());
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertEquals("No categories we're provided",
+                Objects.requireNonNull(response.getBody()).getMessage());
         assertNull(Objects.requireNonNull(response.getBody()).getData());
     }
 
     @Test
-    void testDeleteCategory_NoSession() throws JsonProcessingException {
-        Category.Delete payload = new Category.Delete();
-        payload.setCategoryId(1L);
-
-        Category category = new Category();
-        category.setId(payload.getCategoryId());
-        category.setName("Shopping");
-
-        when(categoryRepository.findById(payload.getCategoryId())).thenReturn(Optional.of(category));
-
-        ResponseEntity<ApiResponse<Category>> response = categoryController.deleteCategory(payload, session);
-
-        assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
-        assertEquals("No valid session found. Sign in first", Objects.requireNonNull(response.getBody()).getMessage());
-        assertNull(Objects.requireNonNull(response.getBody()).getData());
-    }
-
-    @Test
-    void testDeleteCategory_TryForDifferentUser() throws JsonProcessingException {
-        User user = new User();
-        user.setUuid(UUID.randomUUID());
-
-        User sessionUser = new User();
-        sessionUser.setUuid(UUID.randomUUID());
-
+    void testDeleteCategory_AllItemsInvalid() throws JsonProcessingException {
+        User owner = new User(UUID.randomUUID());
+        User sessionUser = new User(UUID.randomUUID());
         session.setAttribute("user", objMapper.writeValueAsString(sessionUser));
 
-        Category.Delete payload = new Category.Delete();
-        payload.setCategoryId(1L);
+        List<Category.Delete> payload = new ArrayList<>();
+        payload.add(Category.builder()
+                .id(1L)
+                .owner(owner)
+                .build()
+                .toDelete());
 
-        Category category = new Category();
-        category.setId(payload.getCategoryId());
-        category.setName("Shopping");
-        category.setOwner(user);
 
-        when(categoryRepository.findById(payload.getCategoryId())).thenReturn(Optional.of(category));
+        when(categoryRepository.findById(any(Long.class)))
+                .thenReturn(Optional.empty());
 
-        ResponseEntity<ApiResponse<Category>> response = categoryController.deleteCategory(payload, session);
+        ResponseEntity<ApiResponse<Map<String, List<?>>>> response =
+                categoryController.deleteCategories(payload, session);
 
-        assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
-        assertEquals("You can't delete categories from other users", Objects.requireNonNull(response.getBody()).getMessage());
-        assertNull(Objects.requireNonNull(response.getBody()).getData());
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertEquals("All provided categories we're invalid values",
+                Objects.requireNonNull(response.getBody()).getMessage());
+        Map<String, List<?>> responseBody = response.getBody().getData();
+        assertEquals(1, responseBody.get("failed").size());
+        assertEquals(0, responseBody.get("success").size());
+    }
+
+    @Test
+    void testDeleteCategory_SomeFailures() throws JsonProcessingException {
+        User owner = new User(UUID.randomUUID());
+        session.setAttribute("user", objMapper.writeValueAsString(owner));
+
+        List<Category.Delete> payload = new ArrayList<>();
+        Category c1 = Category.builder()
+                .id(1L)
+                .owner(owner)
+                .build();
+        payload.add(c1.toDelete());
+
+        Category c2 = Category.builder()
+                .id(2L)
+                .build();
+        payload.add(c2.toDelete());
+
+        when(categoryRepository.findById(1L))
+                .thenReturn(Optional.of(c1));
+        when(categoryRepository.findById(2L))
+                .thenReturn(Optional.empty());
+
+        ResponseEntity<ApiResponse<Map<String, List<?>>>> response =
+                categoryController.deleteCategories(payload, session);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNull(Objects.requireNonNull(response.getBody()).getMessage());
+        Map<String, List<?>> responseBody = response.getBody().getData();
+        assertEquals(1, responseBody.get("failed").size());
+        assertEquals(1, responseBody.get("success").size());
+    }
+
+    @Test
+    void testDeleteCategory_WrongSessionUser() throws JsonProcessingException {
+        User sessionUser = new User(UUID.randomUUID());
+        User owner = new User(UUID.randomUUID());
+        session.setAttribute("user", objMapper.writeValueAsString(sessionUser));
+
+        List<Category.Delete> payload = new ArrayList<>();
+        Category c1 = Category.builder()
+                .id(1L)
+                .owner(owner)
+                .build();
+        payload.add(c1.toDelete());
+
+        Category c2 = Category.builder()
+                .id(2L)
+                .owner(sessionUser)
+                .build();
+        payload.add(c2.toDelete());
+
+        when(categoryRepository.findById(1L))
+                .thenReturn(Optional.of(c1));
+        when(categoryRepository.findById(2L))
+                .thenReturn(Optional.of(c2));
+
+        ResponseEntity<ApiResponse<Map<String, List<?>>>> response =
+                categoryController.deleteCategories(payload, session);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNull(Objects.requireNonNull(response.getBody()).getMessage());
+        Map<String, List<?>> responseBody = response.getBody().getData();
+        assertEquals(1, responseBody.get("failed").size());
+        assertEquals(1, responseBody.get("success").size());
     }
 
     @Test
     void testDeleteCategory_Success() throws JsonProcessingException {
-        User user = new User();
-        user.setUuid(UUID.randomUUID());
+        User owner = new User(UUID.randomUUID());
+        session.setAttribute("user", objMapper.writeValueAsString(owner));
 
-        session.setAttribute("user", objMapper.writeValueAsString(user));
+        List<Category.Delete> payload = new ArrayList<>();
+        Category c1 = Category.builder()
+                .id(1L)
+                .owner(owner)
+                .build();
+        payload.add(c1.toDelete());
 
-        Category.Delete payload = new Category.Delete();
-        payload.setCategoryId(1L);
+        Category c2 = Category.builder()
+                .id(2L)
+                .owner(owner)
+                .build();
+        payload.add(c2.toDelete());
 
-        Category category = new Category();
-        category.setId(payload.getCategoryId());
-        category.setName("Shopping");
-        category.setOwner(user);
+        when(categoryRepository.findById(1L))
+                .thenReturn(Optional.of(c1));
+        when(categoryRepository.findById(2L))
+                .thenReturn(Optional.of(c2));
 
-        when(categoryRepository.findById(payload.getCategoryId())).thenReturn(Optional.of(category));
-
-        ResponseEntity<ApiResponse<Category>> response = categoryController.deleteCategory(payload, session);
+        ResponseEntity<ApiResponse<Map<String, List<?>>>> response =
+                categoryController.deleteCategories(payload, session);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNull(Objects.requireNonNull(response.getBody()).getMessage());
-        assertEquals(category, Objects.requireNonNull(response.getBody()).getData());
+        Map<String, List<?>> responseBody = response.getBody().getData();
+        assertEquals(0, responseBody.get("failed").size());
+        assertEquals(2, responseBody.get("success").size());
+        assertEquals(List.of(c1, c2), responseBody.get("success"));
     }
 }

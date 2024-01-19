@@ -11,10 +11,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 
 @RestController
 @RequestMapping("/v1/category")
@@ -113,26 +110,46 @@ public class CategoryController {
     }
 
     @DeleteMapping
-    public ResponseEntity<ApiResponse<Category>> deleteCategory(@RequestBody Category.Delete payload, HttpSession session) throws JsonProcessingException {
-        Optional<Category> category =  categoryRepository.findById(payload.getCategoryId());
-        if (category.isEmpty()) {
+    public ResponseEntity<ApiResponse<Map<String, List<?>>>> deleteCategories(
+            @RequestBody List<Category.Delete> payloads,
+            HttpSession session) throws JsonProcessingException {
+        if (payloads.size() == 0) {
             return ResponseEntity
-                    .status(HttpStatus.NOT_FOUND)
-                    .body(new ApiResponse<>(404, "Provided category doesn't exist"));
+                    .status(HttpStatus.BAD_REQUEST)
+                    .body(new ApiResponse<>(HttpStatus.BAD_REQUEST, "No categories we're provided"));
         }
 
-        Optional<User> sessionUser = AuthorizationInterceptor.getSessionUser(session);
-        if (sessionUser.isEmpty()) {
-            return AuthorizationInterceptor.noValidSessionResponse();
-        } else if (!sessionUser.get().getUuid().equals(category.get().getOwner().getUuid())) {
-            return ResponseEntity
-                    .status(HttpStatus.CONFLICT)
-                    .body(new ApiResponse<>(HttpStatus.CONFLICT.value(), "You can't delete categories from other users"));
+        List<Category> successfullyDeleted = new ArrayList<>();
+        List<Category.Delete> failedToDelete = new ArrayList<>();
+
+        for (Category.Delete payload : payloads) {
+            Optional<Category> categoryOptional = categoryRepository.findById(payload.getCategoryId());
+            if (categoryOptional.isEmpty()) {
+                failedToDelete.add(payload);
+            } else {
+                Category category = categoryOptional.get();
+                User categoryOwner = category.getOwner();
+                Optional<User> optSessionUser = AuthorizationInterceptor.getSessionUser(session);
+
+                if (optSessionUser.isEmpty()
+                        || !optSessionUser.get().getUuid().equals(categoryOwner.getUuid())) {
+                    failedToDelete.add(payload);
+                } else {
+                    categoryRepository.delete(category);
+                    successfullyDeleted.add(category);
+                }
+            }
         }
 
-        categoryRepository.deleteById(payload.getCategoryId());
+        Map<String, List<?>> response = new HashMap<>();
+        response.put("success", successfullyDeleted);
+        response.put("failed", failedToDelete);
+        boolean didAllFail = failedToDelete.size() == payloads.size();
         return ResponseEntity
-                .status(HttpStatus.OK)
-                .body(new ApiResponse<>(200, category.get()));
+                .status(didAllFail ? HttpStatus.BAD_REQUEST : HttpStatus.OK)
+                .body(new ApiResponse<>(
+                        didAllFail ? HttpStatus.BAD_REQUEST : HttpStatus.OK,
+                        didAllFail ? "All provided categories we're invalid values" : null,
+                        response));
     }
 }

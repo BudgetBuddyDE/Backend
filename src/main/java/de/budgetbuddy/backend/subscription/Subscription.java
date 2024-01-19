@@ -5,7 +5,9 @@ import de.budgetbuddy.backend.paymentMethod.PaymentMethod;
 import de.budgetbuddy.backend.user.User;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 import org.hibernate.annotations.ColumnDefault;
 
 import java.util.Date;
@@ -14,6 +16,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "subscription", schema = "public")
 @Data
+@Builder
 @AllArgsConstructor
 public class Subscription {
 
@@ -74,6 +77,11 @@ public class Subscription {
         return executeAt >= 1 && executeAt <=31;
     }
 
+    public Subscription.Delete toDelete() {
+        return new Subscription.Delete(this.id);
+    }
+
+
     @Data
     public static class Create {
         private UUID owner;
@@ -100,6 +108,8 @@ public class Subscription {
     }
 
     @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
     public static class Delete {
         private Long subscriptionId;
     }

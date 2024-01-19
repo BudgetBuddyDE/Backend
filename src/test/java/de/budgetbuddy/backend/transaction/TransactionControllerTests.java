@@ -4,7 +4,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import de.budgetbuddy.backend.ApiResponse;
-import de.budgetbuddy.backend.category.Category;
 import de.budgetbuddy.backend.category.CategoryRepository;
 import de.budgetbuddy.backend.paymentMethod.PaymentMethod;
 import de.budgetbuddy.backend.paymentMethod.PaymentMethodRepository;
@@ -27,8 +26,7 @@ import org.springframework.mock.web.MockHttpSession;
 import java.time.LocalDate;
 import java.util.*;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
@@ -90,7 +88,7 @@ public class TransactionControllerTests {
         User owner = new User(uuid);
         session.setAttribute("user", objectMapper.writeValueAsString(owner));
 
-        Category category = new Category();
+        de.budgetbuddy.backend.category.Category category = new de.budgetbuddy.backend.category.Category();
         category.setId(1L);
         category.setOwner(owner);
 
@@ -167,7 +165,7 @@ public class TransactionControllerTests {
         UUID uuid = UUID.randomUUID();
         User owner = new User(uuid);
 
-        Category category = new Category();
+        de.budgetbuddy.backend.category.Category category = new de.budgetbuddy.backend.category.Category();
         category.setId(1L);
         category.setOwner(owner);
 
@@ -209,7 +207,7 @@ public class TransactionControllerTests {
         User owner = new User(uuid);
         session.setAttribute("user", objectMapper.writeValueAsString(owner));
 
-        Category category = new Category();
+        de.budgetbuddy.backend.category.Category category = new de.budgetbuddy.backend.category.Category();
         category.setId(1L);
         category.setOwner(owner);
 
@@ -369,7 +367,7 @@ public class TransactionControllerTests {
         transaction.setId(1L);
         transaction.setOwner(owner);
 
-        Category category = new Category();
+        de.budgetbuddy.backend.category.Category category = new de.budgetbuddy.backend.category.Category();
         category.setId(1L);
         category.setOwner(owner);
 
@@ -401,7 +399,7 @@ public class TransactionControllerTests {
         transaction.setId(1L);
         transaction.setOwner(owner);
 
-        Category category = new Category();
+        de.budgetbuddy.backend.category.Category category = new de.budgetbuddy.backend.category.Category();
         category.setId(1L);
         category.setOwner(owner);
 
@@ -439,7 +437,7 @@ public class TransactionControllerTests {
         transaction.setOwner(owner);
         transaction.setDescription("Not paid yet");
 
-        Category category = new Category();
+        de.budgetbuddy.backend.category.Category category = new de.budgetbuddy.backend.category.Category();
         category.setId(1L);
         category.setOwner(owner);
 
@@ -475,42 +473,110 @@ public class TransactionControllerTests {
     }
 
     @Test
-    void testDeleteTransaction_TransactionNotFound() throws JsonProcessingException {
-        Transaction.Delete payload = new Transaction.Delete();
-        payload.setTransactionId(1L);
+    void testDeleteTransaction_EmptyList() throws JsonProcessingException {
+        List<Transaction.Delete> payload = new ArrayList<>();
 
-        when(transactionRepository.findById(payload.getTransactionId()))
-                .thenReturn(Optional.empty());
+        ResponseEntity<ApiResponse<Map<String, List<?>>>> response =
+                transactionController.deleteTransactions(payload, session);
 
-        ResponseEntity<ApiResponse<Transaction>> response = transactionController.deleteTransaction(payload, session);
-
-        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
-        assertEquals("Provided transaction not found", Objects.requireNonNull(response.getBody()).getMessage());
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertEquals("No transactions we're provided",
+                Objects.requireNonNull(response.getBody()).getMessage());
         assertNull(Objects.requireNonNull(response.getBody()).getData());
     }
 
     @Test
-    void testDeleteTransaction_WrongSessionUser() throws JsonProcessingException {
-        session.setAttribute("user", objectMapper.writeValueAsString(new User(UUID.randomUUID())));
-
+    void testDeleteTransaction_AllItemsInvalid() throws JsonProcessingException {
         User owner = new User(UUID.randomUUID());
+        User sessionUser = new User(UUID.randomUUID());
+        session.setAttribute("user", objectMapper.writeValueAsString(sessionUser));
 
-        Transaction transaction = new Transaction();
-        transaction.setId(1L);
-        transaction.setOwner(owner);
+        List<Transaction.Delete> payload = new ArrayList<>();
+        payload.add(Transaction.builder()
+                .id(1L)
+                .owner(owner)
+                .build()
+                .toDelete());
 
-        Transaction.Delete payload = new Transaction.Delete();
-        payload.setTransactionId(1L);
 
-        when(transactionRepository.findById(payload.getTransactionId()))
-                .thenReturn(Optional.of(transaction));
+        when(transactionRepository.findById(any(Long.class)))
+                .thenReturn(Optional.empty());
 
-        ResponseEntity<ApiResponse<Transaction>> response = transactionController.deleteTransaction(payload, session);
+        ResponseEntity<ApiResponse<Map<String, List<?>>>> response =
+                transactionController.deleteTransactions(payload, session);
 
-        assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
-        assertEquals("You don't own this transaction",
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertEquals("All provided transactions we're invalid values",
                 Objects.requireNonNull(response.getBody()).getMessage());
-        assertNull(Objects.requireNonNull(response.getBody()).getData());
+        Map<String, List<?>> responseBody = response.getBody().getData();
+        assertEquals(1, responseBody.get("failed").size());
+        assertEquals(0, responseBody.get("success").size());
+    }
+
+    @Test
+    void testDeleteTransaction_SomeFailures() throws JsonProcessingException {
+        User owner = new User(UUID.randomUUID());
+        session.setAttribute("user", objectMapper.writeValueAsString(owner));
+
+        List<Transaction.Delete> payload = new ArrayList<>();
+        Transaction t1 = Transaction.builder()
+                .id(1L)
+                .owner(owner)
+                .build();
+        payload.add(t1.toDelete());
+
+        Transaction t2 = Transaction.builder()
+                .id(2L)
+                .build();
+        payload.add(t2.toDelete());
+
+        when(transactionRepository.findById(1L))
+                .thenReturn(Optional.of(t1));
+        when(transactionRepository.findById(2L))
+                .thenReturn(Optional.empty());
+
+        ResponseEntity<ApiResponse<Map<String, List<?>>>> response =
+                transactionController.deleteTransactions(payload, session);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNull(Objects.requireNonNull(response.getBody()).getMessage());
+        Map<String, List<?>> responseBody = response.getBody().getData();
+        assertEquals(1, responseBody.get("failed").size());
+        assertEquals(1, responseBody.get("success").size());
+    }
+
+    @Test
+    void testDeleteTransaction_WrongSessionUser() throws JsonProcessingException {
+        User sessionUser = new User(UUID.randomUUID());
+        User owner = new User(UUID.randomUUID());
+        session.setAttribute("user", objectMapper.writeValueAsString(sessionUser));
+
+        List<Transaction.Delete> payload = new ArrayList<>();
+        Transaction t1 = Transaction.builder()
+                .id(1L)
+                .owner(owner)
+                .build();
+        payload.add(t1.toDelete());
+
+        Transaction t2 = Transaction.builder()
+                .id(2L)
+                .owner(sessionUser)
+                .build();
+        payload.add(t2.toDelete());
+
+        when(transactionRepository.findById(1L))
+                .thenReturn(Optional.of(t1));
+        when(transactionRepository.findById(2L))
+                .thenReturn(Optional.of(t2));
+
+        ResponseEntity<ApiResponse<Map<String, List<?>>>> response =
+                transactionController.deleteTransactions(payload, session);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNull(Objects.requireNonNull(response.getBody()).getMessage());
+        Map<String, List<?>> responseBody = response.getBody().getData();
+        assertEquals(1, responseBody.get("failed").size());
+        assertEquals(1, responseBody.get("success").size());
     }
 
     @Test
@@ -518,21 +584,33 @@ public class TransactionControllerTests {
         User owner = new User(UUID.randomUUID());
         session.setAttribute("user", objectMapper.writeValueAsString(owner));
 
-        Transaction transaction = new Transaction();
-        transaction.setId(1L);
-        transaction.setOwner(owner);
+        List<Transaction.Delete> payload = new ArrayList<>();
+        Transaction t1 = Transaction.builder()
+                .id(1L)
+                .owner(owner)
+                .build();
+        payload.add(t1.toDelete());
 
-        Transaction.Delete payload = new Transaction.Delete();
-        payload.setTransactionId(1L);
+        Transaction t2 = Transaction.builder()
+                .id(2L)
+                .owner(owner)
+                .build();
+        payload.add(t2.toDelete());
 
-        when(transactionRepository.findById(payload.getTransactionId()))
-                .thenReturn(Optional.of(transaction));
+        when(transactionRepository.findById(1L))
+                .thenReturn(Optional.of(t1));
+        when(transactionRepository.findById(2L))
+                .thenReturn(Optional.of(t2));
 
-        ResponseEntity<ApiResponse<Transaction>> response = transactionController.deleteTransaction(payload, session);
+        ResponseEntity<ApiResponse<Map<String, List<?>>>> response =
+                transactionController.deleteTransactions(payload, session);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNull(Objects.requireNonNull(response.getBody()).getMessage());
-        assertEquals(transaction, Objects.requireNonNull(response.getBody()).getData());
+        Map<String, List<?>> responseBody = response.getBody().getData();
+        assertEquals(0, responseBody.get("failed").size());
+        assertEquals(2, responseBody.get("success").size());
+        assertEquals(List.of(t1, t2), responseBody.get("success"));
     }
 
     @Test

@@ -287,86 +287,143 @@ public class PaymentMethodControllerTests {
     }
 
     @Test
-    void testDeletePaymentMethod_NotFound() throws JsonProcessingException {
-        PaymentMethod.Delete payload = new PaymentMethod.Delete();
-        payload.setPaymentMethodId(1L);
+    void testDeletePaymentMethod_EmptyList() throws JsonProcessingException {
+        List<PaymentMethod.Delete> payload = new ArrayList<>();
 
-        when(paymentMethodRepository.findById(payload.getPaymentMethodId())).thenReturn(Optional.empty());
+        ResponseEntity<ApiResponse<Map<String, List<?>>>> response =
+                paymentMethodController.deletePaymentMethods(payload, session);
 
-        ResponseEntity<ApiResponse<PaymentMethod>> response = paymentMethodController.deletePaymentMethod(payload, session);
-
-        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
-        assertEquals("Provided payment-method doesn't exist", Objects.requireNonNull(response.getBody()).getMessage());
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertEquals("No payment-methods we're provided",
+                Objects.requireNonNull(response.getBody()).getMessage());
         assertNull(Objects.requireNonNull(response.getBody()).getData());
     }
 
     @Test
-    void testDeletePaymentMethod_NoSession() throws JsonProcessingException {
-        PaymentMethod.Delete payload = new PaymentMethod.Delete();
-        payload.setPaymentMethodId(1L);
-
-        PaymentMethod paymentMethod = new PaymentMethod();
-        paymentMethod.setId(payload.getPaymentMethodId());
-        paymentMethod.setName("Shopping");
-
-        when(paymentMethodRepository.findById(payload.getPaymentMethodId())).thenReturn(Optional.of(paymentMethod));
-
-        ResponseEntity<ApiResponse<PaymentMethod>> response = paymentMethodController.deletePaymentMethod(payload, session);
-
-        assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
-        assertEquals("No valid session found. Sign in first", Objects.requireNonNull(response.getBody()).getMessage());
-        assertNull(Objects.requireNonNull(response.getBody()).getData());
-    }
-
-    @Test
-    void testDeletePaymentMethod_TryForDifferentUser() throws JsonProcessingException {
-        User user = new User();
-        user.setUuid(UUID.randomUUID());
-
-        User sessionUser = new User();
-        sessionUser.setUuid(UUID.randomUUID());
-
+    void testDeletePaymentMethod_AllItemsInvalid() throws JsonProcessingException {
+        User owner = new User(UUID.randomUUID());
+        User sessionUser = new User(UUID.randomUUID());
         session.setAttribute("user", objectMapper.writeValueAsString(sessionUser));
 
-        PaymentMethod.Delete payload = new PaymentMethod.Delete();
-        payload.setPaymentMethodId(1L);
+        List<PaymentMethod.Delete> payload = new ArrayList<>();
+        payload.add(PaymentMethod.builder()
+                .id(1L)
+                .owner(owner)
+                .build()
+                .toDelete());
 
-        PaymentMethod paymentMethod = new PaymentMethod();
-        paymentMethod.setId(payload.getPaymentMethodId());
-        paymentMethod.setName("Shopping");
-        paymentMethod.setOwner(user);
 
-        when(paymentMethodRepository.findById(payload.getPaymentMethodId())).thenReturn(Optional.of(paymentMethod));
+        when(paymentMethodRepository.findById(any(Long.class)))
+                .thenReturn(Optional.empty());
 
-        ResponseEntity<ApiResponse<PaymentMethod>> response = paymentMethodController.deletePaymentMethod(payload, session);
+        ResponseEntity<ApiResponse<Map<String, List<?>>>> response =
+                paymentMethodController.deletePaymentMethods(payload, session);
 
-        assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
-        assertEquals("You can't delete payment-methods from other users", Objects.requireNonNull(response.getBody()).getMessage());
-        assertNull(Objects.requireNonNull(response.getBody()).getData());
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertEquals("All provided payment-methods we're invalid values",
+                Objects.requireNonNull(response.getBody()).getMessage());
+        Map<String, List<?>> responseBody = response.getBody().getData();
+        assertEquals(1, responseBody.get("failed").size());
+        assertEquals(0, responseBody.get("success").size());
+    }
+
+    @Test
+    void testDeletePaymentMethod_SomeFailures() throws JsonProcessingException {
+        User owner = new User(UUID.randomUUID());
+        session.setAttribute("user", objectMapper.writeValueAsString(owner));
+
+        List<PaymentMethod.Delete> payload = new ArrayList<>();
+        PaymentMethod pm1 = PaymentMethod.builder()
+                .id(1L)
+                .owner(owner)
+                .build();
+        payload.add(pm1.toDelete());
+
+        PaymentMethod pm2 = PaymentMethod.builder()
+                .id(2L)
+                .build();
+        payload.add(pm2.toDelete());
+
+        when(paymentMethodRepository.findById(1L))
+                .thenReturn(Optional.of(pm1));
+        when(paymentMethodRepository.findById(2L))
+                .thenReturn(Optional.empty());
+
+        ResponseEntity<ApiResponse<Map<String, List<?>>>> response =
+                paymentMethodController.deletePaymentMethods(payload, session);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNull(Objects.requireNonNull(response.getBody()).getMessage());
+        Map<String, List<?>> responseBody = response.getBody().getData();
+        assertEquals(1, responseBody.get("failed").size());
+        assertEquals(1, responseBody.get("success").size());
+    }
+
+    @Test
+    void testDeletePaymentMethod_WrongSessionUser() throws JsonProcessingException {
+        User sessionUser = new User(UUID.randomUUID());
+        User owner = new User(UUID.randomUUID());
+        session.setAttribute("user", objectMapper.writeValueAsString(sessionUser));
+
+        List<PaymentMethod.Delete> payload = new ArrayList<>();
+        PaymentMethod pm1 = PaymentMethod.builder()
+                .id(1L)
+                .owner(owner)
+                .build();
+        payload.add(pm1.toDelete());
+
+        PaymentMethod pm2 = PaymentMethod.builder()
+                .id(2L)
+                .owner(sessionUser)
+                .build();
+        payload.add(pm2.toDelete());
+
+        when(paymentMethodRepository.findById(1L))
+                .thenReturn(Optional.of(pm1));
+        when(paymentMethodRepository.findById(2L))
+                .thenReturn(Optional.of(pm2));
+
+        ResponseEntity<ApiResponse<Map<String, List<?>>>> response =
+                paymentMethodController.deletePaymentMethods(payload, session);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNull(Objects.requireNonNull(response.getBody()).getMessage());
+        Map<String, List<?>> responseBody = response.getBody().getData();
+        assertEquals(1, responseBody.get("failed").size());
+        assertEquals(1, responseBody.get("success").size());
     }
 
     @Test
     void testDeletePaymentMethod_Success() throws JsonProcessingException {
-        User user = new User();
-        user.setUuid(UUID.randomUUID());
+        User owner = new User(UUID.randomUUID());
+        session.setAttribute("user", objectMapper.writeValueAsString(owner));
 
-        session.setAttribute("user", objectMapper.writeValueAsString(user));
+        List<PaymentMethod.Delete> payload = new ArrayList<>();
+        PaymentMethod pm1 = PaymentMethod.builder()
+                .id(1L)
+                .owner(owner)
+                .build();
+        payload.add(pm1.toDelete());
 
-        PaymentMethod.Delete payload = new PaymentMethod.Delete();
-        payload.setPaymentMethodId(1L);
+        PaymentMethod pm2 = PaymentMethod.builder()
+                .id(2L)
+                .owner(owner)
+                .build();
+        payload.add(pm2.toDelete());
 
-        PaymentMethod paymentMethod = new PaymentMethod();
-        paymentMethod.setId(payload.getPaymentMethodId());
-        paymentMethod.setName("Shopping");
-        paymentMethod.setOwner(user);
+        when(paymentMethodRepository.findById(1L))
+                .thenReturn(Optional.of(pm1));
+        when(paymentMethodRepository.findById(2L))
+                .thenReturn(Optional.of(pm2));
 
-        when(paymentMethodRepository.findById(payload.getPaymentMethodId())).thenReturn(Optional.of(paymentMethod));
-
-        ResponseEntity<ApiResponse<PaymentMethod>> response = paymentMethodController.deletePaymentMethod(payload, session);
+        ResponseEntity<ApiResponse<Map<String, List<?>>>> response =
+                paymentMethodController.deletePaymentMethods(payload, session);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNull(Objects.requireNonNull(response.getBody()).getMessage());
-        assertEquals(paymentMethod, Objects.requireNonNull(response.getBody()).getData());
+        Map<String, List<?>> responseBody = response.getBody().getData();
+        assertEquals(0, responseBody.get("failed").size());
+        assertEquals(2, responseBody.get("success").size());
     }
 
 }

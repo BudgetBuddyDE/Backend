@@ -3,7 +3,9 @@ package de.budgetbuddy.backend.category;
 import de.budgetbuddy.backend.user.User;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 import org.hibernate.annotations.ColumnDefault;
 
 import java.util.Date;
@@ -12,6 +14,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "category", schema = "public")
 @Data
+@Builder
 @AllArgsConstructor
 public class Category {
 
@@ -43,6 +46,10 @@ public class Category {
         this.createdAt = new Date();
     }
 
+    public Category.Delete toDelete() {
+        return new Category.Delete(this.id);
+    }
+
     @Data
     public static class Create {
         public UUID owner;
@@ -58,6 +65,8 @@ public class Category {
     }
 
     @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
     public static class Delete {
         public Long categoryId;
     }

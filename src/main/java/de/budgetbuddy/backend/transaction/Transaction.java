@@ -1,6 +1,8 @@
 package de.budgetbuddy.backend.transaction;
 
+import de.budgetbuddy.backend.category.Category;
 import de.budgetbuddy.backend.paymentMethod.PaymentMethod;
+import de.budgetbuddy.backend.transaction.file.TransactionFile;
 import de.budgetbuddy.backend.user.User;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -10,6 +12,7 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.ColumnDefault;
 
 import java.util.Date;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -48,22 +51,14 @@ public class Transaction {
     @Column(name = "transfer_amount", nullable = false)
     private Double transferAmount;
 
+    @OneToMany(mappedBy = "transaction", cascade = CascadeType.ALL)
+    private List<TransactionFile> attachedFiles;
+
     @Column(name = "created_at", nullable = false, updatable = false, columnDefinition = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
     @ColumnDefault("CURRENT_TIMESTAMP")
     private Date createdAt;
 
     public Transaction() {}
-
-    public Transaction(User owner, de.budgetbuddy.backend.category.Category category, PaymentMethod paymentMethod, Date processedAt, String receiver, String description, Double transferAmount) {
-        this.owner = owner;
-        this.category = category;
-        this.paymentMethod = paymentMethod;
-        this.processedAt = processedAt;
-        this.receiver = receiver;
-        this.description = description;
-        this.transferAmount = transferAmount;
-        this.createdAt = new Date();
-    }
 
     public Transaction.Delete toDelete() {
         return new Transaction.Delete(this.id);

@@ -3,6 +3,7 @@ package de.budgetbuddy.backend.transaction;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import de.budgetbuddy.backend.ApiResponse;
 import de.budgetbuddy.backend.auth.AuthorizationInterceptor;
+import de.budgetbuddy.backend.category.Category;
 import de.budgetbuddy.backend.category.CategoryRepository;
 import de.budgetbuddy.backend.paymentMethod.PaymentMethod;
 import de.budgetbuddy.backend.paymentMethod.PaymentMethodRepository;
@@ -29,7 +30,11 @@ public class TransactionController {
     private final TransactionRepository transactionRepository;
     private final TransactionService transactionService;
 
-    public TransactionController(UserRepository userRepository, CategoryRepository categoryRepository, PaymentMethodRepository paymentMethodRepository, SubscriptionRepository subscriptionRepository, TransactionRepository transactionRepository) {
+    public TransactionController(UserRepository userRepository,
+                                 CategoryRepository categoryRepository,
+                                 PaymentMethodRepository paymentMethodRepository,
+                                 SubscriptionRepository subscriptionRepository,
+                                 TransactionRepository transactionRepository) {
         this.userRepository = userRepository;
         this.categoryRepository = categoryRepository;
         this.paymentMethodRepository = paymentMethodRepository;
@@ -63,35 +68,40 @@ public class TransactionController {
                     && !sessionUser.getRole().isGreaterOrEqualThan(RolePermission.SERVICE_ACCOUNT)) {
                 return ResponseEntity
                         .status(HttpStatus.CONFLICT)
-                        .body(new ApiResponse<>(HttpStatus.CONFLICT.value(), "You don't have the permissions to create transactions for a different user"));
+                        .body(new ApiResponse<>(
+                                HttpStatus.CONFLICT.value(),
+                                "You don't have the permissions to create transactions for a different user"));
             }
 
-            Optional<de.budgetbuddy.backend.category.Category> optCategory = categoryRepository
+            Optional<Category> optCategory = categoryRepository
                     .findByIdAndOwner(transactionAttrs.getCategoryId(), transactionOwner);
             if (optCategory.isEmpty()) {
                 return ResponseEntity
                         .status(HttpStatus.NOT_FOUND)
-                        .body(new ApiResponse<>(HttpStatus.NOT_FOUND.value(), "Provided category not found"));
+                        .body(new ApiResponse<>(
+                                HttpStatus.NOT_FOUND.value(),
+                                "Provided category not found"));
             }
 
-            Optional<PaymentMethod> optPaymentMethod = paymentMethodRepository.findByIdAndOwner(transactionAttrs.getPaymentMethodId(), transactionOwner);
+            Optional<PaymentMethod> optPaymentMethod = paymentMethodRepository
+                    .findByIdAndOwner(transactionAttrs.getPaymentMethodId(), transactionOwner);
             if (optPaymentMethod.isEmpty()) {
                 return ResponseEntity
                         .status(HttpStatus.NOT_FOUND)
-                        .body(new ApiResponse<>(HttpStatus.NOT_FOUND.value(), "Provided payment-method not found"));
+                        .body(new ApiResponse<>(
+                                HttpStatus.NOT_FOUND.value(),
+                                "Provided payment-method not found"));
             }
 
-            Transaction transaction = new Transaction(
-                    transactionOwner,
-                    optCategory.get(),
-                    optPaymentMethod.get(),
-                    transactionAttrs.getProcessedAt(),
-                    transactionAttrs.getReceiver(),
-                    transactionAttrs.getDescription(),
-                    transactionAttrs.getTransferAmount()
-            );
-
-            transactions.add(transaction);
+            transactions.add(Transaction.builder()
+                    .owner(transactionOwner)
+                    .category(optCategory.get())
+                    .paymentMethod(optPaymentMethod.get())
+                    .processedAt(transactionAttrs.getProcessedAt())
+                    .receiver(transactionAttrs.getReceiver())
+                    .description(transactionAttrs.getDescription())
+                    .transferAmount(transactionAttrs.getTransferAmount())
+                    .build());
         }
 
         return ResponseEntity
@@ -100,7 +110,8 @@ public class TransactionController {
     }
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<Transaction>>> getTransactionsByUuid(@RequestParam UUID uuid, HttpSession session) throws JsonProcessingException {
+    public ResponseEntity<ApiResponse<List<Transaction>>> getTransactionsByUuid(@RequestParam UUID uuid,
+                                                                                HttpSession session) throws JsonProcessingException {
         Optional<User> user = userRepository.findById(uuid);
         if (user.isEmpty()) {
             return ResponseEntity
@@ -129,7 +140,8 @@ public class TransactionController {
     }
 
     @PutMapping
-    public ResponseEntity<ApiResponse<Transaction>> updateTransaction(@RequestBody Transaction.Update payload, HttpSession session) throws JsonProcessingException {
+    public ResponseEntity<ApiResponse<Transaction>> updateTransaction(@RequestBody Transaction.Update payload,
+                                                                      HttpSession session) throws JsonProcessingException {
         Optional<Transaction> optTransaction = transactionRepository.findById(payload.getTransactionId());
         if (optTransaction.isEmpty()) {
             return ResponseEntity
@@ -145,38 +157,44 @@ public class TransactionController {
         } else if (!optSessionUser.get().getUuid().equals(transactionOwner.getUuid())) {
             return ResponseEntity
                     .status(HttpStatus.CONFLICT)
-                    .body(new ApiResponse<>(HttpStatus.CONFLICT.value(), "You don't own this transaction"));
+                    .body(new ApiResponse<>(
+                            HttpStatus.CONFLICT.value(),
+                            "You don't own this transaction"));
         }
 
-        Optional<de.budgetbuddy.backend.category.Category> optCategory = categoryRepository.findByIdAndOwner(payload.getCategoryId(), transactionOwner);
+        Optional<Category> optCategory = categoryRepository
+                .findByIdAndOwner(payload.getCategoryId(), transactionOwner);
         if (optCategory.isEmpty()) {
             return ResponseEntity
                     .status(HttpStatus.NOT_FOUND)
-                    .body(new ApiResponse<>(HttpStatus.NOT_FOUND.value(), "Provided category not found"));
+                    .body(new ApiResponse<>(
+                            HttpStatus.NOT_FOUND.value(),
+                            "Provided category not found"));
         }
 
-        Optional<PaymentMethod> optPaymentMethod = paymentMethodRepository.findByIdAndOwner(payload.getPaymentMethodId(), transactionOwner);
+        Optional<PaymentMethod> optPaymentMethod = paymentMethodRepository
+                .findByIdAndOwner(payload.getPaymentMethodId(), transactionOwner);
         if (optPaymentMethod.isEmpty()) {
             return ResponseEntity
                     .status(HttpStatus.NOT_FOUND)
-                    .body(new ApiResponse<>(HttpStatus.NOT_FOUND.value(), "Provided payment-method not found"));
+                    .body(new ApiResponse<>(
+                            HttpStatus.NOT_FOUND.value(),
+                            "Provided payment-method not found"));
         }
-
-        Transaction updatedTransaction = new Transaction(
-                transaction.getId(),
-                transactionOwner,
-                optCategory.get(),
-                optPaymentMethod.get(),
-                payload.getProcessedAt(),
-                payload.getReceiver(),
-                payload.getDescription(),
-                payload.getTransferAmount(),
-                transaction.getCreatedAt()
-        );
 
         return ResponseEntity
                 .status(HttpStatus.OK)
-                .body(new ApiResponse<>(transactionRepository.save(updatedTransaction)));
+                .body(new ApiResponse<>(transactionRepository.save(Transaction.builder()
+                        .id(transaction.getId())
+                        .owner(transactionOwner)
+                        .category(optCategory.get())
+                        .paymentMethod(optPaymentMethod.get())
+                        .processedAt(payload.getProcessedAt())
+                        .receiver(payload.getReceiver())
+                        .description(payload.getDescription())
+                        .transferAmount(payload.getTransferAmount())
+                        .createdAt(transaction.getCreatedAt())
+                        .build())));
     }
 
     @DeleteMapping

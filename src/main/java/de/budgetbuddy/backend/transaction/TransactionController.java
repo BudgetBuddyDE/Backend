@@ -44,7 +44,8 @@ public class TransactionController {
     }
 
     @PostMapping
-    public ResponseEntity<ApiResponse<List<Transaction>>> createTransaction(@RequestBody List<Transaction.Create> payload, HttpSession session) throws JsonProcessingException {
+    public ResponseEntity<ApiResponse<List<Transaction>>> createTransaction(@RequestBody List<Transaction.Create> payload,
+                                                                            HttpSession session) throws JsonProcessingException {
         Optional<User> optSessionUser = AuthorizationInterceptor.getSessionUser(session);
         if (optSessionUser.isEmpty()) {
             return AuthorizationInterceptor.noValidSessionResponse();
@@ -101,6 +102,8 @@ public class TransactionController {
                     .receiver(transactionAttrs.getReceiver())
                     .description(transactionAttrs.getDescription())
                     .transferAmount(transactionAttrs.getTransferAmount())
+                    .attachedFiles(new ArrayList<>())
+                    .createdAt(new Date())
                     .build());
         }
 
@@ -193,6 +196,7 @@ public class TransactionController {
                         .receiver(payload.getReceiver())
                         .description(payload.getDescription())
                         .transferAmount(payload.getTransferAmount())
+                        .attachedFiles(transaction.getAttachedFiles())
                         .createdAt(transaction.getCreatedAt())
                         .build())));
     }

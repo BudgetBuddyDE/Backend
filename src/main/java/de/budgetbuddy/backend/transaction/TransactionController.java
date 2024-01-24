@@ -101,6 +101,7 @@ public class TransactionController {
                     .receiver(transactionAttrs.getReceiver())
                     .description(transactionAttrs.getDescription())
                     .transferAmount(transactionAttrs.getTransferAmount())
+                    .createdAt(new Date())
                     .build());
         }
 

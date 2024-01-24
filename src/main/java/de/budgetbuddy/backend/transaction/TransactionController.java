@@ -101,6 +101,7 @@ public class TransactionController {
                     .receiver(transactionAttrs.getReceiver())
                     .description(transactionAttrs.getDescription())
                     .transferAmount(transactionAttrs.getTransferAmount())
+                    .createdAt(new Date())
                     .build());
         }
 
@@ -193,6 +194,7 @@ public class TransactionController {
                         .receiver(payload.getReceiver())
                         .description(payload.getDescription())
                         .transferAmount(payload.getTransferAmount())
+                        .attachedFiles(transaction.getAttachedFiles())
                         .createdAt(transaction.getCreatedAt())
                         .build())));
     }

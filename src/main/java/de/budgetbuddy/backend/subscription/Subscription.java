@@ -81,7 +81,6 @@ public class Subscription {
         return new Subscription.Delete(this.id);
     }
 
-
     @Data
     public static class Create {
         private UUID owner;

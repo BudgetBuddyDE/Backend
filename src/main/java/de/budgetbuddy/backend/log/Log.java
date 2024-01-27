@@ -2,6 +2,7 @@ package de.budgetbuddy.backend.log;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import org.hibernate.annotations.ColumnDefault;
 
@@ -12,6 +13,7 @@ import java.util.List;
 @Table(name = "log", schema = "public")
 @Data
 @AllArgsConstructor
+@Builder
 public class Log {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

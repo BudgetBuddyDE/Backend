@@ -2,6 +2,7 @@ package de.budgetbuddy.backend.transaction;
 
 import de.budgetbuddy.backend.category.Category;
 import de.budgetbuddy.backend.paymentMethod.PaymentMethod;
+import de.budgetbuddy.backend.subscription.Subscription;
 import de.budgetbuddy.backend.transaction.file.TransactionFile;
 import de.budgetbuddy.backend.user.User;
 import jakarta.persistence.*;
@@ -11,6 +12,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.ColumnDefault;
 
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.UUID;
@@ -68,6 +70,22 @@ public class Transaction {
     public static class DailyTransaction {
         private Date date;
         private Double amount;
+    }
+
+    public static Transaction ofSubscription(Subscription subscription) {
+        Date processedDate = new Date();
+        processedDate.setDate(subscription.getExecuteAt());
+        return Transaction.builder()
+                .owner(subscription.getOwner())
+                .processedAt(processedDate)
+                .category(subscription.getCategory())
+                .paymentMethod(subscription.getPaymentMethod())
+                .receiver(subscription.getReceiver())
+                .description(subscription.getDescription())
+                .transferAmount(subscription.getTransferAmount())
+                .attachedFiles(new ArrayList<>())
+                .createdAt(new Date())
+                .build();
     }
 
     @Data

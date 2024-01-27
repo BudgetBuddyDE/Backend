@@ -2,6 +2,8 @@ package de.budgetbuddy.backend.log;
 
 import org.springframework.stereotype.Component;
 
+import java.util.Date;
+
 @Component
 public class Logger {
     private static Logger instance;
@@ -20,7 +22,14 @@ public class Logger {
         return instance;
     }
 
-    public void log(Log log) {
+    public static void log(Log log) {
+        if (log.getCreatedAt() == null) {
+            log.setCreatedAt(new Date());
+        }
+        getInstance().saveLog(log);
+    }
+
+    public void saveLog(Log log) {
         System.out.println(log);
         if (this.logRepository == null) return;
         logRepository.save(log);

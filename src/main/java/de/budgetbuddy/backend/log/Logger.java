@@ -23,9 +23,6 @@ public class Logger {
     }
 
     public static void log(Log log) {
-        if (log.getCreatedAt() == null) {
-            log.setCreatedAt(new Date());
-        }
         getInstance().saveLog(log);
     }
 

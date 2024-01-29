@@ -4,8 +4,10 @@ import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 import org.hibernate.annotations.ColumnDefault;
 
+import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
 
@@ -13,6 +15,7 @@ import java.util.List;
 @Table(name = "log", schema = "public")
 @Data
 @AllArgsConstructor
+@NoArgsConstructor
 @Builder
 public class Log {
     @Id
@@ -34,13 +37,10 @@ public class Log {
     @Column(name = "content")
     private String content;
 
+    @Builder.Default
     @Column(name = "created_at", nullable = false, updatable = false, columnDefinition = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
     @ColumnDefault("CURRENT_TIMESTAMP")
-    private Date createdAt;
-
-    public Log() {
-        this.createdAt = new Date();
-    }
+    private Date createdAt = new Date();
 
     public Log(String application, LogType type, String category, String content) {
         this.application = application;
@@ -54,8 +54,13 @@ public class Log {
         return List.of(this.category.split(","));
     }
 
+    public String getFormattedTime() {
+        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS");
+        return dateFormat.format(this.createdAt);
+    }
+
     @Override
     public String toString() {
-        return String.format("[%s]::%s::%s", type.toString(), category, content);
+        return String.format("%s [%s]::%s::%s", getFormattedTime(), type.toString(), category, content);
     }
 }

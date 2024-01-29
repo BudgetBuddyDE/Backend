@@ -282,17 +282,22 @@ public class TransactionController {
         UUID sessionUserUUID = sessionUser.getUuid();
 
         LocalDate today = LocalDate.now();
+        LocalDate tomorrow = today.plusDays(1);
         LocalDate firstDayOfMonth = LocalDate.now().withDayOfMonth(1);
         LocalDate lastDayOfMonth = LocalDate.now().with(TemporalAdjusters.lastDayOfMonth());
 
-        Double receivedEarnings = transactionRepository.getReceivedEarnings(firstDayOfMonth, lastDayOfMonth, sessionUserUUID);
-        Double paidExpenses = transactionRepository.getPaidExpenses(firstDayOfMonth, lastDayOfMonth, sessionUserUUID);
+        Double receivedEarnings = transactionRepository
+                .getTransactionSumByDateRange(firstDayOfMonth, lastDayOfMonth, sessionUserUUID, DailyTransactionType.INCOME.toString());
+        Double paidExpenses = transactionRepository
+                .getTransactionSumByDateRange(firstDayOfMonth, lastDayOfMonth, sessionUserUUID, DailyTransactionType.SPENDINGS.toString());
         Double balance = transactionRepository.getBalance(firstDayOfMonth, lastDayOfMonth, sessionUserUUID);
 
         Double upcomingSubscriptionEarnings = subscriptionRepository.getUpcomingSubscriptioEarnings(sessionUserUUID);
-        Double upcomingTransactionEarnings = transactionRepository.getReceivedEarnings(today, lastDayOfMonth, sessionUserUUID);
+        Double upcomingTransactionEarnings = transactionRepository
+                .getTransactionSumByDateRange(tomorrow, lastDayOfMonth, sessionUserUUID, DailyTransactionType.INCOME.toString());
         Double upcomingSubscriptioExpenses = subscriptionRepository.getUpcomingSubscriptionExpenses(sessionUserUUID);
-        Double upcomingTransactionExpenses = transactionRepository.getPaidExpenses(today, lastDayOfMonth, sessionUserUUID);
+        Double upcomingTransactionExpenses = transactionRepository
+                .getTransactionSumByDateRange(tomorrow, lastDayOfMonth, sessionUserUUID, DailyTransactionType.SPENDINGS.toString());
 
         Double upcomingEarnings = upcomingSubscriptionEarnings + upcomingTransactionEarnings;
         Double upcomingExpenses = upcomingSubscriptioExpenses + upcomingTransactionExpenses;

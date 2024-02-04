@@ -8,6 +8,8 @@ import de.budgetbuddy.backend.category.CategoryRepository;
 import de.budgetbuddy.backend.paymentMethod.PaymentMethod;
 import de.budgetbuddy.backend.paymentMethod.PaymentMethodRepository;
 import de.budgetbuddy.backend.subscription.SubscriptionRepository;
+import de.budgetbuddy.backend.transaction.file.TransactionFile;
+import de.budgetbuddy.backend.transaction.file.TransactionFileRepository;
 import de.budgetbuddy.backend.user.User;
 import de.budgetbuddy.backend.user.UserRepository;
 import de.budgetbuddy.backend.user.role.RolePermission;
@@ -28,18 +30,21 @@ public class TransactionController {
     private final PaymentMethodRepository paymentMethodRepository;
     private final SubscriptionRepository subscriptionRepository;
     private final TransactionRepository transactionRepository;
+    private final TransactionFileRepository transactionFileRepository;
     private final TransactionService transactionService;
 
     public TransactionController(UserRepository userRepository,
                                  CategoryRepository categoryRepository,
                                  PaymentMethodRepository paymentMethodRepository,
                                  SubscriptionRepository subscriptionRepository,
-                                 TransactionRepository transactionRepository) {
+                                 TransactionRepository transactionRepository,
+                                 TransactionFileRepository transactionFileRepository) {
         this.userRepository = userRepository;
         this.categoryRepository = categoryRepository;
         this.paymentMethodRepository = paymentMethodRepository;
         this.subscriptionRepository = subscriptionRepository;
         this.transactionRepository = transactionRepository;
+        this.transactionFileRepository = transactionFileRepository;
         this.transactionService = new TransactionService(transactionRepository);
     }
 
@@ -185,6 +190,21 @@ public class TransactionController {
                             "Provided payment-method not found"));
         }
 
+        List<TransactionFile> transactionFiles = new ArrayList<>();
+        if (!payload.getAttachedFiles().isEmpty()) {
+            for (TransactionFile.Create file : payload.getAttachedFiles()) {
+                transactionFiles.add(TransactionFile.builder()
+                        .owner(transactionOwner)
+                        .transaction(transaction)
+                        .fileName(file.getFileName())
+                        .fileSize(file.getFileSize())
+                        .mimeType(file.getMimeType())
+                        .location(file.getFileUrl())
+                        .build());
+            }
+            transactionFileRepository.saveAll(transactionFiles);
+        }
+
         return ResponseEntity
                 .status(HttpStatus.OK)
                 .body(new ApiResponse<>(transactionRepository.save(Transaction.builder()
@@ -196,7 +216,7 @@ public class TransactionController {
                         .receiver(payload.getReceiver())
                         .description(payload.getDescription())
                         .transferAmount(payload.getTransferAmount())
-                        .attachedFiles(transaction.getAttachedFiles())
+                        .attachedFiles(transactionFiles)
                         .createdAt(transaction.getCreatedAt())
                         .build())));
     }

@@ -48,8 +48,17 @@ public class TransactionFile {
     @Column(name = "location", length = 100)
     private String location;
 
+    @Builder.Default
     @Column(name = "created_at", nullable = false, updatable = false, columnDefinition = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
     @ColumnDefault("CURRENT_TIMESTAMP")
     private Date createdAt = new Date();
+
+    @Data
+    public static class Create {
+        private String fileName;
+        private int fileSize;
+        private String mimeType;
+        private String fileUrl;
+    }
 
 }

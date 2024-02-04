@@ -8,6 +8,7 @@ import de.budgetbuddy.backend.category.CategoryRepository;
 import de.budgetbuddy.backend.paymentMethod.PaymentMethod;
 import de.budgetbuddy.backend.paymentMethod.PaymentMethodRepository;
 import de.budgetbuddy.backend.subscription.SubscriptionRepository;
+import de.budgetbuddy.backend.transaction.file.TransactionFileRepository;
 import de.budgetbuddy.backend.user.User;
 import de.budgetbuddy.backend.user.UserRepository;
 import de.budgetbuddy.backend.user.role.Role;
@@ -37,6 +38,7 @@ public class TransactionControllerTests {
     private final CategoryRepository categoryRepository;
     private final PaymentMethodRepository paymentMethodRepository;
     private final TransactionRepository transactionRepository;
+    private final TransactionFileRepository transactionFileRepository;
     private final TransactionService transactionService;
     private final TransactionController transactionController;
     private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
@@ -48,7 +50,14 @@ public class TransactionControllerTests {
         this.paymentMethodRepository = Mockito.mock(PaymentMethodRepository.class);
         SubscriptionRepository subscriptionRepository = Mockito.mock(SubscriptionRepository.class);
         this.transactionRepository = Mockito.mock(TransactionRepository.class);
-        this.transactionController = new TransactionController(userRepository, categoryRepository, paymentMethodRepository, subscriptionRepository, transactionRepository);
+        this.transactionFileRepository = Mockito.mock(TransactionFileRepository.class);
+        this.transactionController = new TransactionController(
+                userRepository,
+                categoryRepository,
+                paymentMethodRepository,
+                subscriptionRepository,
+                transactionRepository,
+                transactionFileRepository);
         this.transactionService = new TransactionService(transactionRepository);
     }
 

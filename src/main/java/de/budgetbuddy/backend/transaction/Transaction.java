@@ -108,6 +108,7 @@ public class Transaction {
         private String receiver;
         private String description;
         private Double transferAmount;
+        private ArrayList<TransactionFile.Create> attachedFiles = new ArrayList<>();
     }
 
     @Data

@@ -2,8 +2,6 @@ package de.budgetbuddy.backend.log;
 
 import org.springframework.stereotype.Component;
 
-import java.util.Date;
-
 @Component
 public class Logger {
     private static Logger instance;

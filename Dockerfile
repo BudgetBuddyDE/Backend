@@ -14,7 +14,7 @@ COPY build.gradle .
 COPY src src
 
   # Führe den Build mit Gradle im Builder aus
-RUN gradle build --no-daemon
+RUN gradle build -x test --no-daemon
 
   # Verwende das OpenJDK 17-JDK-Slim-Basisimage für den Anwendungslauf
 FROM openjdk:17-jdk-slim

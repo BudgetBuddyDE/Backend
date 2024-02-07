@@ -8,6 +8,7 @@ import de.budgetbuddy.backend.category.CategoryRepository;
 import de.budgetbuddy.backend.paymentMethod.PaymentMethod;
 import de.budgetbuddy.backend.paymentMethod.PaymentMethodRepository;
 import de.budgetbuddy.backend.subscription.SubscriptionRepository;
+import de.budgetbuddy.backend.transaction.file.TransactionFile;
 import de.budgetbuddy.backend.transaction.file.TransactionFileRepository;
 import de.budgetbuddy.backend.user.User;
 import de.budgetbuddy.backend.user.UserRepository;
@@ -26,6 +27,7 @@ import org.springframework.mock.web.MockHttpSession;
 
 import java.time.LocalDate;
 import java.util.*;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -655,5 +657,241 @@ public class TransactionControllerTests {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNull(Objects.requireNonNull(response.getBody()).getMessage());
         assertEquals(0, Objects.requireNonNull(response.getBody()).getData().size());
+    }
+
+    @Test
+    void attachFiles_NoFilesProvided() throws JsonProcessingException {
+        List<TransactionFile.Create> files = new ArrayList<>();
+
+        ResponseEntity<ApiResponse<List<TransactionFile>>> response =
+                transactionController.attachFiles(files, session);
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertEquals("No files provided", Objects.requireNonNull(response.getBody()).getMessage());
+    }
+
+    @Test
+    void attachFiles_OnlyInvalidFilesProvided() throws JsonProcessingException {
+        User sessionUser = new User(UUID.randomUUID());
+        session.setAttribute("user", objectMapper.writeValueAsString(sessionUser));
+
+        TransactionFile.Create file = TransactionFile.Create.builder()
+                .transactionId(1L)
+                .build();
+
+        List<TransactionFile.Create> files = List.of(file);
+
+        when(transactionRepository.findById(file.getTransactionId()))
+                .thenReturn(Optional.empty());
+
+        ResponseEntity<ApiResponse<List<TransactionFile>>> response =
+                transactionController.attachFiles(files, session);
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertEquals("No valid transactions and files we're provided",
+                Objects.requireNonNull(response.getBody()).getMessage());
+        assertNull(Objects.requireNonNull(response.getBody()).getData());
+    }
+
+    @Test
+    void attachFiles_SomeInvalidFilesProvided() throws JsonProcessingException {
+        User sessionUser = new User(UUID.randomUUID());
+        session.setAttribute("user", objectMapper.writeValueAsString(sessionUser));
+
+        Transaction t2  = Transaction.builder()
+                .id(2L)
+                .owner(new User(UUID.randomUUID()))
+                .build();
+
+        Transaction t3 = Transaction.builder()
+                .id(3L)
+                .owner(sessionUser)
+                .build();
+
+        List<TransactionFile.Create> files = List.of(
+                TransactionFile.Create.builder()
+                        .transactionId(1L)
+                        .build(),
+                TransactionFile.Create.builder()
+                        .transactionId(t2.getId())
+                        .build(),
+                TransactionFile.Create.builder()
+                        .transactionId(t3.getId())
+                        .build()
+        );
+
+        List<TransactionFile> transactionFiles = List.of(TransactionFile.builder()
+                .transaction(t3)
+                .build());
+
+        when(transactionRepository.findById(1L))
+                .thenReturn(Optional.empty());
+
+        when(transactionRepository.findById(t2.getId()))
+                .thenReturn(Optional.of(t2));
+
+        when(transactionRepository.findById(t3.getId()))
+                .thenReturn(Optional.of(t3));
+
+        when(transactionFileRepository.saveAll(any()))
+                .thenReturn(transactionFiles);
+
+        ResponseEntity<ApiResponse<List<TransactionFile>>> response =
+                transactionController.attachFiles(files, session);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNull(Objects.requireNonNull(response.getBody()).getMessage());
+        assertEquals(transactionFiles, Objects.requireNonNull(response.getBody()).getData());
+    }
+
+    @Test
+    void attachFiles_Success() throws JsonProcessingException {
+        User sessionUser = new User(UUID.randomUUID());
+        session.setAttribute("user", objectMapper.writeValueAsString(sessionUser));
+
+        Transaction transaction = Transaction.builder()
+                .id(1L)
+                .owner(sessionUser)
+                .build();
+
+        List<TransactionFile.Create> files = List.of(
+                TransactionFile.Create.builder()
+                        .transactionId(transaction.getId())
+                        .build()
+        );
+
+        List<TransactionFile> transactionFiles = List.of(TransactionFile.builder()
+                .transaction(transaction)
+                .owner(sessionUser)
+                .build());
+
+        when(transactionRepository.findById(transaction.getId()))
+                .thenReturn(Optional.of(transaction));
+
+        when(transactionFileRepository.saveAll(any()))
+                .thenReturn(transactionFiles);
+
+        ResponseEntity<ApiResponse<List<TransactionFile>>> response =
+                transactionController.attachFiles(files, session);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNull(Objects.requireNonNull(response.getBody()).getMessage());
+        assertEquals(transactionFiles, Objects.requireNonNull(response.getBody()).getData());
+    }
+
+    @Test
+    void detachFiles_NoFilesProvided() throws JsonProcessingException {
+        ResponseEntity<ApiResponse<List<TransactionFile>>> response =
+                transactionController.detachFiles(new ArrayList<>(), session);
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertEquals("No file id's provided", Objects.requireNonNull(response.getBody()).getMessage());
+        assertNull(Objects.requireNonNull(response.getBody()).getData());
+    }
+
+    @Test
+    void detachFiles_OnlyInvalidFilesProvided() throws JsonProcessingException {
+        User sessionUser = new User(UUID.randomUUID());
+        session.setAttribute("user", objectMapper.writeValueAsString(sessionUser));
+
+        when(transactionFileRepository.findById(any(UUID.class)))
+                .thenReturn(Optional.empty());
+
+        List<TransactionFile.Delete> fileIds = List.of(
+                TransactionFile.Delete.builder().uuid(UUID.randomUUID()).build()
+        );
+
+        ResponseEntity<ApiResponse<List<TransactionFile>>> response =
+                transactionController.detachFiles(fileIds, session);
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertEquals("No valid file id's we're provided", Objects.requireNonNull(response.getBody()).getMessage());
+        assertNull(Objects.requireNonNull(response.getBody()).getData());
+    }
+
+    @Test
+    void detachFiles_SomeInvalidFilesProvided() throws JsonProcessingException {
+        User sessionUser = new User(UUID.randomUUID());
+        session.setAttribute("user", objectMapper.writeValueAsString(sessionUser));
+
+        Transaction transaction = Transaction.builder()
+                .id(1L)
+                .owner(sessionUser)
+                .build();
+
+        when(transactionRepository.findById(transaction.getId()))
+                .thenReturn(Optional.of(transaction));
+
+        TransactionFile invalidFile = TransactionFile.builder()
+                .uuid(UUID.randomUUID())
+                .transaction(any(Transaction.class))
+                .owner(new User(UUID.randomUUID()))
+                .build();
+
+        TransactionFile validFile = TransactionFile.builder()
+                .uuid(UUID.randomUUID())
+                .transaction(transaction)
+                .owner(sessionUser)
+                .build();
+
+        List<TransactionFile.Delete> fileIds = Stream.of(invalidFile.getUuid(), validFile.getUuid())
+                .map(uuid -> TransactionFile.Delete.builder().uuid(uuid).build())
+                .toList();
+
+        when(transactionFileRepository.findById(invalidFile.getUuid()))
+                .thenReturn(Optional.of(invalidFile));
+
+        when(transactionFileRepository.findById(validFile.getUuid()))
+                .thenReturn(Optional.of(validFile));
+
+        ResponseEntity<ApiResponse<List<TransactionFile>>> response =
+                transactionController.detachFiles(fileIds, session);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNull(Objects.requireNonNull(response.getBody()).getMessage());
+        assertEquals(List.of(validFile), Objects.requireNonNull(response.getBody()).getData());
+    }
+
+    @Test
+    void detachFiles_Success() throws JsonProcessingException {
+        User sessionUser = new User(UUID.randomUUID());
+        session.setAttribute("user", objectMapper.writeValueAsString(sessionUser));
+
+        Transaction transaction = Transaction.builder()
+                .id(1L)
+                .owner(sessionUser)
+                .build();
+
+        when(transactionRepository.findById(transaction.getId()))
+                .thenReturn(Optional.of(transaction));
+
+        TransactionFile validFile = TransactionFile.builder()
+                .uuid(UUID.randomUUID())
+                .transaction(transaction)
+                .owner(sessionUser)
+                .build();
+
+        TransactionFile anotherValidFile = TransactionFile.builder()
+                .uuid(UUID.randomUUID())
+                .transaction(transaction)
+                .owner(sessionUser)
+                .build();
+
+        List<TransactionFile.Delete> fileIds = Stream.of(validFile.getUuid(), anotherValidFile.getUuid())
+                .map(uuid -> TransactionFile.Delete.builder().uuid(uuid).build())
+                .toList();
+
+        when(transactionFileRepository.findById(validFile.getUuid()))
+                .thenReturn(Optional.of(validFile));
+
+        when(transactionFileRepository.findById(anotherValidFile.getUuid()))
+                .thenReturn(Optional.of(anotherValidFile));
+
+        ResponseEntity<ApiResponse<List<TransactionFile>>> response =
+                transactionController.detachFiles(fileIds, session);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNull(Objects.requireNonNull(response.getBody()).getMessage());
+        assertEquals(List.of(validFile, anotherValidFile), Objects.requireNonNull(response.getBody()).getData());
     }
 }

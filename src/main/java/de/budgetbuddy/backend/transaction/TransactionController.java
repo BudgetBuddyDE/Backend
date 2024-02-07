@@ -49,8 +49,9 @@ public class TransactionController {
     }
 
     @PostMapping
-    public ResponseEntity<ApiResponse<List<Transaction>>> createTransaction(@RequestBody List<Transaction.Create> payload,
-                                                                            HttpSession session) throws JsonProcessingException {
+    public ResponseEntity<ApiResponse<List<Transaction>>> createTransaction(
+            @RequestBody List<Transaction.Create> payload,
+            HttpSession session) throws JsonProcessingException {
         Optional<User> optSessionUser = AuthorizationInterceptor.getSessionUser(session);
         if (optSessionUser.isEmpty()) {
             return AuthorizationInterceptor.noValidSessionResponse();
@@ -190,21 +191,6 @@ public class TransactionController {
                             "Provided payment-method not found"));
         }
 
-        List<TransactionFile> transactionFiles = new ArrayList<>();
-        if (!payload.getAttachedFiles().isEmpty()) {
-            for (TransactionFile.Create file : payload.getAttachedFiles()) {
-                transactionFiles.add(TransactionFile.builder()
-                        .owner(transactionOwner)
-                        .transaction(transaction)
-                        .fileName(file.getFileName())
-                        .fileSize(file.getFileSize())
-                        .mimeType(file.getMimeType())
-                        .location(file.getFileUrl())
-                        .build());
-            }
-            transactionFileRepository.saveAll(transactionFiles);
-        }
-
         return ResponseEntity
                 .status(HttpStatus.OK)
                 .body(new ApiResponse<>(transactionRepository.save(Transaction.builder()
@@ -216,12 +202,106 @@ public class TransactionController {
                         .receiver(payload.getReceiver())
                         .description(payload.getDescription())
                         .transferAmount(payload.getTransferAmount())
-                        .attachedFiles(transactionFiles)
+                        .attachedFiles(transaction.getAttachedFiles())
                         .createdAt(transaction.getCreatedAt())
                         .build())));
     }
 
+    @PostMapping("/file")
+    public ResponseEntity<ApiResponse<List<TransactionFile>>> attachFiles(
+            @RequestBody List<TransactionFile.Create> files,
+            HttpSession session) throws JsonProcessingException {
+        if (files.isEmpty()) {
+            return ResponseEntity
+                    .status(HttpStatus.BAD_REQUEST)
+                    .body(new ApiResponse<>(HttpStatus.BAD_REQUEST.value(), "No files provided"));
+        }
+
+        Optional<User> sessionUser = AuthorizationInterceptor.getSessionUser(session);
+        if (sessionUser.isEmpty()) {
+            return AuthorizationInterceptor.noValidSessionResponse();
+        }
+
+        List<TransactionFile> transactionFiles = files.stream()
+//                .filter(file -> transactionRepository.findById(file.getTransactionId()).isPresent())
+                .map(file -> {
+                    Optional<Transaction> optTransaction = transactionRepository.findById(file.getTransactionId());
+                    if (optTransaction.isEmpty()) return null;
+                    Transaction transaction = optTransaction.get();
+                    User transactionOwner = transaction.getOwner();
+
+                    if (!transactionOwner.getUuid().equals(sessionUser.get().getUuid())) {
+                        return null;
+                    }
+
+                    return TransactionFile.builder()
+                            .owner(transactionOwner)
+                            .transaction(transaction)
+                            .fileName(file.getFileName())
+                            .fileSize(file.getFileSize())
+                            .mimeType(file.getMimeType())
+                            .location(file.getFileUrl())
+                            .build();
+                })
+                .filter(Objects::nonNull)
+                .toList();
+
+        if (transactionFiles.isEmpty()) {
+            return ResponseEntity
+                    .status(HttpStatus.BAD_REQUEST)
+                    .body(new ApiResponse<>(HttpStatus.BAD_REQUEST.value(), "No valid transactions and files we're provided"));
+        }
+
+        return ResponseEntity
+                .status(HttpStatus.OK)
+                .body(new ApiResponse<>(HttpStatus.OK.value(), transactionFileRepository.saveAll(transactionFiles)));
+    }
+
+    @DeleteMapping("/file")
+    public ResponseEntity<ApiResponse<List<TransactionFile>>> detachFiles(
+            @RequestBody List<TransactionFile.Delete> files,
+            HttpSession session) throws JsonProcessingException {
+        if (files.isEmpty()) {
+            return ResponseEntity
+                    .status(HttpStatus.BAD_REQUEST)
+                    .body(new ApiResponse<>(HttpStatus.BAD_REQUEST.value(), "No file id's provided"));
+        }
+
+        Optional<User> sessionUser = AuthorizationInterceptor.getSessionUser(session);
+        if (sessionUser.isEmpty()) {
+            return AuthorizationInterceptor.noValidSessionResponse();
+        }
+
+        List<TransactionFile> transactionFiles = files.stream()
+//                .filter(file -> transactionFileRepository.findById(file.getUuid()).isPresent())
+                .map(file -> {
+                    Optional<TransactionFile> optionalTransactionFile = transactionFileRepository.findById(file.getUuid());
+                    if (optionalTransactionFile.isEmpty()) return null;
+                    TransactionFile transactionFile = optionalTransactionFile.get();
+                    User transactionFileOwner = transactionFile.getOwner();
+                    if (!transactionFileOwner.getUuid().equals(sessionUser.get().getUuid())) {
+                        return null;
+                    }
+                    return transactionFile;
+                })
+                .filter(Objects::nonNull)
+                .toList();
+
+        if (transactionFiles.isEmpty()) {
+            return ResponseEntity
+                    .status(HttpStatus.BAD_REQUEST)
+                    .body(new ApiResponse<>(HttpStatus.BAD_REQUEST.value(), "No valid file id's we're provided"));
+        }
+
+        transactionFileRepository.deleteAllById(transactionFiles.stream().map(TransactionFile::getUuid).toList());
+
+        return ResponseEntity
+                .status(HttpStatus.OK)
+                .body(new ApiResponse<>(HttpStatus.OK.value(), transactionFiles));
+    }
+
     @DeleteMapping
+
     public ResponseEntity<ApiResponse<Map<String, List<?>>>> deleteTransactions(
             @RequestBody List<Transaction.Delete> payloads,
             HttpSession session) throws JsonProcessingException {

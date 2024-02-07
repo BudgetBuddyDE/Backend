@@ -45,7 +45,7 @@ public class TransactionFile {
     @Column(name = "mimetype", length = 20)
     private String mimeType;
 
-    @Column(name = "location", length = 100)
+    @Column(name = "location")
     private String location;
 
     @Builder.Default
@@ -54,11 +54,23 @@ public class TransactionFile {
     private Date createdAt = new Date();
 
     @Data
+    @Builder
+    @AllArgsConstructor
+    @NoArgsConstructor
     public static class Create {
+        private Long transactionId;
         private String fileName;
         private int fileSize;
         private String mimeType;
         private String fileUrl;
+    }
+
+    @Data
+    @Builder
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class Delete {
+        private UUID uuid;
     }
 
 }

@@ -118,6 +118,20 @@ public class TransactionController {
                 .body(new ApiResponse<>(transactionRepository.saveAll(transactions)));
     }
 
+    @GetMapping("/single")
+    public ResponseEntity<ApiResponse<Transaction>> getTransactionById(
+            @RequestParam Long transactionId,
+            HttpSession session) throws JsonProcessingException {
+        Optional<Transaction> optTransaction = transactionRepository
+                .findByIdAndOwner(transactionId, AuthorizationInterceptor.getSessionUser(session).orElseThrow());
+        return optTransaction.map(transaction -> ResponseEntity
+                .status(HttpStatus.OK)
+                .body(new ApiResponse<>(transaction))).orElseGet(() -> ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .body(new ApiResponse<>(HttpStatus.NOT_FOUND.value(), "Provided transaction not found")));
+
+    }
+
     @GetMapping
     public ResponseEntity<ApiResponse<List<Transaction>>> getTransactionsByUuid(@RequestParam UUID uuid,
                                                                                 HttpSession session) throws JsonProcessingException {
@@ -301,7 +315,6 @@ public class TransactionController {
     }
 
     @DeleteMapping
-
     public ResponseEntity<ApiResponse<Map<String, List<?>>>> deleteTransactions(
             @RequestBody List<Transaction.Delete> payloads,
             HttpSession session) throws JsonProcessingException {

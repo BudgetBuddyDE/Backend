@@ -7,9 +7,11 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface TransactionRepository extends JpaRepository<Transaction, Long> {
+    Optional<Transaction> findByIdAndOwner(Long id, User owner);
     List<Transaction> findAllByOwner(User owner);
     List<Transaction> findTransactionsByOwnerOrderByProcessedAtDesc(User owner);
     @Query(value = "select * from f_get_daily_transactions(:start_date, :end_date, :requested_data, :user_id)", nativeQuery = true)

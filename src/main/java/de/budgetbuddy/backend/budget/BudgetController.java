@@ -5,7 +5,6 @@ import de.budgetbuddy.backend.ApiResponse;
 import de.budgetbuddy.backend.auth.AuthorizationInterceptor;
 import de.budgetbuddy.backend.category.Category;
 import de.budgetbuddy.backend.category.CategoryRepository;
-import de.budgetbuddy.backend.transaction.Transaction;
 import de.budgetbuddy.backend.user.User;
 import de.budgetbuddy.backend.user.UserRepository;
 import jakarta.servlet.http.HttpSession;

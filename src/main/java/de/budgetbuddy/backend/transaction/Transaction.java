@@ -116,5 +116,4 @@ public class Transaction {
     public static class Delete {
         private Long transactionId;
     }
-
 }

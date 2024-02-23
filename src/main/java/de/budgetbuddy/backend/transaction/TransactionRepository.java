@@ -32,4 +32,14 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     Double getBalance(@Param("start_date") LocalDate startDate,
                       @Param("end_date") LocalDate endDate,
                       @Param("user_id") UUID userId);
+
+    @Query("select new de.budgetbuddy.backend.transaction.MonthlyBalance(" +
+            "date_trunc('month', t.processedAt), " +
+            "sum(case when t.transferAmount >= 0 then t.transferAmount else 0 end), " +
+            "sum(case when t.transferAmount < 0 then t.transferAmount else 0 end), " +
+            "sum(t.transferAmount)) " +
+            "from Transaction t where t.owner = :user " +
+            "group by date_trunc('month', t.processedAt) " +
+            "order by date_trunc('month', t.processedAt) desc")
+    List<MonthlyBalance> getMonthlyBalance(@Param("user") User user);
 }

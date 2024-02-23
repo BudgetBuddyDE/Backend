@@ -424,4 +424,16 @@ public class TransactionController {
                         Math.abs(upcomingExpenses),
                         balance)));
     }
+
+    @GetMapping("/monthly-balance")
+    public ResponseEntity<ApiResponse<List<MonthlyBalance>>> getMonthlyBalance(HttpSession session) throws JsonProcessingException {
+        Optional<User> optSessionUser = AuthorizationInterceptor.getSessionUser(session);
+        if (optSessionUser.isEmpty()) {
+            return AuthorizationInterceptor.noValidSessionResponse();
+        }
+
+        return ResponseEntity
+                .status(200)
+                .body(new ApiResponse<>(transactionRepository.getMonthlyBalance(optSessionUser.get())));
+    }
 }

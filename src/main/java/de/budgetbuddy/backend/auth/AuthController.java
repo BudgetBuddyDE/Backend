@@ -5,15 +5,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import de.budgetbuddy.backend.ApiResponse;
 import de.budgetbuddy.backend.MailService;
-import de.budgetbuddy.backend.log.Log;
-import de.budgetbuddy.backend.log.LogType;
-import de.budgetbuddy.backend.log.Logger;
 import de.budgetbuddy.backend.user.User;
 import de.budgetbuddy.backend.user.UserRepository;
 import de.budgetbuddy.backend.user.role.Role;
 import de.budgetbuddy.backend.user.role.RolePermission;
 import jakarta.servlet.http.HttpSession;
+import lombok.extern.slf4j.Slf4j;
 import org.mindrot.jbcrypt.BCrypt;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -24,10 +23,12 @@ import org.springframework.web.servlet.view.RedirectView;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
+@Slf4j
 @RestController
 @RequestMapping("/v1/auth")
 public class AuthController {
@@ -102,13 +103,17 @@ public class AuthController {
         User savedUser = userRepository.save(user);
         try {
             if (!mailService.trigger(MailService.getVerificationMailPayload(savedUser))) {
-                Logger.getInstance()
-                        .log(new Log("Backend", LogType.WARNING, "registration", "Couldn't send the verification email"));
+                MDC.setContextMap(Map.of(
+                        "user.uuid", savedUser.getEmail(),
+                        "user.name", savedUser.getName()
+                ));
+                log.warn("Couldn't send the verification email");
             }
         } catch (Exception e) {
-            System.out.print(e.getMessage());
+            log.trace("Wasn't able to send the verification email", e);
         }
 
+        MDC.clear();
         return ResponseEntity
                 .status(HttpStatus.OK)
                 .body(new ApiResponse<>(savedUser));
@@ -262,13 +267,16 @@ public class AuthController {
                     email,
                     optUser.get().getUuid(),
                     passwordReset.getOtp()))) {
-                Logger.getInstance()
-                        .log(new Log("Backend", LogType.WARNING, "password-reset", "Couldn't send the request-password-change email"));
+                MDC.setContextMap(Map.of(
+                        "user.uuid", optUser.get().getUuid().toString(),
+                        "user.email", optUser.get().getEmail()));
+                log.warn("Couldn't send the request-password-change email");
             }
         } catch (Exception e) {
-            System.out.print(e.getMessage());
+            log.trace("Wasn't able to send the request-password-change email", e);
         }
 
+        MDC.clear();
         return ResponseEntity
                 .status(HttpStatus.OK)
                 .body(new ApiResponse<>(passwordReset));
@@ -310,13 +318,16 @@ public class AuthController {
                     user.getEmail(),
                     user.getName(),
                     user.getEmail()))) {
-                Logger.getInstance()
-                        .log(new Log("Backend", LogType.WARNING, "password-reset", "Couldn't send the password-changed notification email"));
+                MDC.setContextMap(Map.of(
+                        "user.uuid", user.getUuid().toString(),
+                        "user.email", user.getEmail()));
+                log.warn("Couldn't send the password-chan)ged notification email");
             }
         } catch (Exception e) {
-            System.out.print(e.getMessage());
+            log.trace("Wasn't able to send the password-changed notification email", e);
         }
 
+        MDC.clear();
         return ResponseEntity
                 .status(HttpStatus.OK)
                 .body(new ApiResponse<>(user));

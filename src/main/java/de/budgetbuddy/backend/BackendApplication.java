@@ -1,8 +1,6 @@
 package de.budgetbuddy.backend;
 
-import de.budgetbuddy.backend.log.LogRepository;
-import de.budgetbuddy.backend.log.Logger;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.http.ResponseEntity;
@@ -11,17 +9,14 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.TimeZone;
 
+@Slf4j
 @RestController
 @SpringBootApplication
 public class BackendApplication {
-	@Autowired
-	public BackendApplication(LogRepository logRepository) {
-		Logger.getInstance().setLogRepository(logRepository);
-	}
-
 	public static void main(String[] args) {
-		TimeZone.setDefault(TimeZone.getTimeZone("UTC+1"));
 		SpringApplication.run(BackendApplication.class, args);
+		TimeZone.setDefault(TimeZone.getTimeZone("UTC+1"));
+		log.info("Timezone was set to 'UTC+1'");
 	}
 
 	@GetMapping("/auth_test")

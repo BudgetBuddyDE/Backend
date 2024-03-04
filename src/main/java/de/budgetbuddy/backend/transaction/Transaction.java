@@ -1,6 +1,5 @@
 package de.budgetbuddy.backend.transaction;
 
-import de.budgetbuddy.backend.category.Category;
 import de.budgetbuddy.backend.paymentMethod.PaymentMethod;
 import de.budgetbuddy.backend.subscription.Subscription;
 import de.budgetbuddy.backend.transaction.file.TransactionFile;

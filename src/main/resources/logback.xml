@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>
+                %d{dd-MM-yyyy HH:mm:ss.SSS} %magenta([%thread]) %highlight(%-5level) %logger{36}.%M - %msg%n
+            </pattern>
+        </encoder>
+    </appender>
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>logs/log.log</file>
+        <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+            <Pattern>
+                %d{dd-MM-yyyy HH:mm:ss.SSS} %magenta([%thread]) %highlight(%-5level) %logger{36}.%M - %msg%n
+            </Pattern>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>
+                logs/archived/log_%d{dd-MM-yyyy}.log
+            </fileNamePattern>
+            <maxHistory>10</maxHistory>
+            <totalSizeCap>100MB</totalSizeCap>
+        </rollingPolicy>
+    </appender>
+
+    <springProfile name="dev">
+        <root level="info">
+            <appender-ref ref="CONSOLE" />
+<!--            <appender-ref ref="FILE" />-->
+        </root>
+        <logger name="de.budgetbuddy.debug-logger" level="debug" additivity="false">
+            <appender-ref ref="CONSOLE" />
+<!--            <appender-ref ref="FILE" />-->
+        </logger>
+    </springProfile>
+
+    <springProfile name="prod">
+        <appender name="GELF" class="de.siegmar.logbackgelf.GelfUdpAppender">
+            <graylogHost>${LOG_API_URI}</graylogHost>
+            <graylogPort>${LOG_API_PORT}</graylogPort>
+            <compressionMethod>GZIP</compressionMethod>
+            <encoder class="de.siegmar.logbackgelf.GelfEncoder">
+                <numberAsString>false</numberAsString>
+                <staticField>application:${APPLICATION_NAME}</staticField>
+                <staticField>instance:${APPLICATION_INSTANCE}</staticField>
+                <staticField>os_arch:${os.arch}</staticField>
+                <staticField>os_name:${os.name}</staticField>
+                <staticField>os_version:${os.version}</staticField>
+            </encoder>
+        </appender>
+
+        <appender name="ASYNC GELF" class="ch.qos.logback.classic.AsyncAppender">
+            <appender-ref ref="GELF" />
+            <neverBlock>true</neverBlock>
+        </appender>
+
+        <root level="info">
+            <appender-ref ref="CONSOLE" />
+            <appender-ref ref="GELF" />
+        </root>
+        <logger name="de.budgetbuddy.debug-logger" level="debug" additivity="false">
+            <appender-ref ref="CONSOLE" />
+            <appender-ref ref="ASYNC GELF" />
+        </logger>
+    </springProfile>
+</configuration>

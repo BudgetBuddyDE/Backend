@@ -37,28 +37,34 @@ public class RequestLoggingInterceptor implements HandlerInterceptor {
     }
 
     public static void logRequest(HttpServletRequest request, HttpServletResponse response) throws IOException {
-        String path = request.getRequestURI();
-        String requestMethod = request.getMethod();
-        int status = response.getStatus();
-        HttpStatusCode statusCode = HttpStatusCode.valueOf(status);
-        MDC.setContextMap(Map.of(
-                "response.status", String.valueOf(status),
-                "request.method", requestMethod,
-                "request.ip", request.getRemoteHost(),
-                "request.path", path,
-                "request.query", request.getQueryString(),
-                "request.body", getBody(request),
-                "request.header.authorization", request.getHeader("authorization")
-        ));
-        String msg = "Request {} {} {}";
-        if (statusCode.is4xxClientError()) {
-            log.warn(msg, requestMethod, status, path);
-        } else if (statusCode.is5xxServerError()) {
-            log.error(msg, requestMethod, status, path);
-        } else {
-            log.info(msg, requestMethod, status, path);
+        try {
+            String path = request.getRequestURI();
+            String requestMethod = request.getMethod();
+            int status = response.getStatus();
+            HttpStatusCode statusCode = HttpStatusCode.valueOf(status);
+            MDC.setContextMap(Map.of(
+                    "response.status", String.valueOf(status),
+                    "request.method", requestMethod,
+                    "request.ip", request.getRemoteHost(),
+                    "request.path", path,
+                    "request.query", request.getQueryString(),
+                    "request.body", getBody(request),
+                    "request.header.authorization", request.getHeader("authorization") == null
+                            ? ""
+                            : request.getHeader("authorization")
+            ));
+            String msg = "Request {} {} {}";
+            if (statusCode.is4xxClientError()) {
+                log.warn(msg, requestMethod, status, path);
+            } else if (statusCode.is5xxServerError()) {
+                log.error(msg, requestMethod, status, path);
+            } else {
+                log.info(msg, requestMethod, status, path);
+            }
+            MDC.clear();
+        } catch (Exception e) {
+            log.trace("Error logging request", e);
         }
-        MDC.clear();
     }
 
     public static String getBody(HttpServletRequest request) throws IOException {

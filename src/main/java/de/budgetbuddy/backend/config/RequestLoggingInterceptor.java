@@ -4,10 +4,11 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.util.HashMap;
 import java.util.Map;
 
-import lombok.extern.slf4j.Slf4j;
-import org.slf4j.MDC;
+import de.budgetbuddy.backend.log.LogType;
+import de.budgetbuddy.backend.log.Logger;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
@@ -17,7 +18,6 @@ import org.springframework.web.servlet.ModelAndView;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpServletRequest;
 
-@Slf4j
 @Component
 public class RequestLoggingInterceptor implements HandlerInterceptor {
     @Override
@@ -37,35 +37,29 @@ public class RequestLoggingInterceptor implements HandlerInterceptor {
     }
 
     public static void logRequest(HttpServletRequest request, HttpServletResponse response) throws IOException {
-        try {
-            String path = request.getRequestURI();
-            String requestMethod = request.getMethod();
-            int status = response.getStatus();
-            HttpStatusCode statusCode = HttpStatusCode.valueOf(status);
-            MDC.setContextMap(Map.of(
-                    "response.status", String.valueOf(status),
-                    "request.method", requestMethod,
-                    "request.ip", request.getRemoteHost(),
-                    "request.path", path,
-                    "request.query", request.getQueryString(),
-                    "request.body", getBody(request),
-                    "request.header.authorization", request.getHeader("authorization") == null
-                            ? ""
-                            : request.getHeader("authorization")
-            ));
-            String msg = "Request {} {} {}";
-            if (statusCode.is4xxClientError()) {
-                log.warn(msg, requestMethod, status, path);
-            } else if (statusCode.is5xxServerError()) {
-                log.error(msg, requestMethod, status, path);
-            } else {
-                log.info(msg, requestMethod, status, path);
-            }
-            MDC.clear();
-        } catch (Exception e) {
-            log.trace("Error logging request", e);
+        // FIXME: Prevent sensitive-data to get logged
+        String path = request.getRequestURI();
+        int status = response.getStatus();
+        Map<String, String> message = new HashMap<>();
+        message.put("status", String.valueOf(status));
+        message.put("method", request.getMethod());
+        message.put("ip", request.getRemoteHost());
+        message.put("path", path);
+        message.put("query", request.getQueryString());
+        message.put("body", getBody(request));
+        message.put("authorization", request.getHeader("authorization"));
+
+        HttpStatusCode statusCode = HttpStatusCode.valueOf(status);
+        LogType logType = LogType.LOG;
+        if (statusCode.is4xxClientError()) {
+            logType = LogType.WARNING;
+        } else if (statusCode.is5xxServerError()) {
+            logType = LogType.ERROR;
         }
+
+        Logger.getInstance().log("Backend", logType, path, message.toString());
     }
+
 
     public static String getBody(HttpServletRequest request) throws IOException {
         StringBuilder stringBuilder = new StringBuilder();

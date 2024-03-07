@@ -1,11 +1,12 @@
 package de.budgetbuddy.backend;
 
+import de.budgetbuddy.backend.log.Log;
+import de.budgetbuddy.backend.log.LogType;
+import de.budgetbuddy.backend.log.Logger;
 import de.budgetbuddy.backend.subscription.Subscription;
 import de.budgetbuddy.backend.subscription.SubscriptionRepository;
 import de.budgetbuddy.backend.transaction.Transaction;
 import de.budgetbuddy.backend.transaction.TransactionRepository;
-import lombok.extern.slf4j.Slf4j;
-import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -14,7 +15,6 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDate;
 import java.util.List;
 
-@Slf4j
 @Component
 @EnableScheduling
 public class Scheduler {
@@ -32,14 +32,23 @@ public class Scheduler {
 
     @Scheduled(cron = "0 0 3 * * *")
     public void myScheduledTask() {
-        MDC.put("category", "process-subscriptions");
-        log.info("Starting to process subscriptions");
+        Logger.log(Log.builder()
+                .application("Backend")
+                .type(LogType.LOG)
+                .category("process-subscriptions")
+                .content("Starting process subscriptions")
+                .build());
         LocalDate today = LocalDate.now();
         List<Subscription> subscriptions = subscriptionRepository
                .findAllByExecuteAtAndPaused(today.getDayOfMonth(), false);
 
         if (subscriptions.isEmpty()) {
-           log.info("No subscriptions to process");
+           Logger.log(Log.builder()
+                   .application("Backend")
+                   .type(LogType.INFORMATION)
+                   .category("process-subscriptions")
+                   .content("No subscriptions to process")
+                   .build());
            return;
         }
 
@@ -48,7 +57,11 @@ public class Scheduler {
                .toList();
 
         transactionRepository.saveAll(transactions);
-        log.info("Processed {} subscriptions", transactions.size());
-        MDC.clear();
+        Logger.log(Log.builder()
+                .application("Backend")
+                .type(LogType.INFORMATION)
+                .category("process-subscriptions")
+                .content("Processed " + transactions.size() + " subscriptions")
+                .build());
     }
 }
